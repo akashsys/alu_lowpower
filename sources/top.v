@@ -14,7 +14,7 @@ module top (
     wire [15:0] alu_result;
     wire        busy;
     wire        alu_en;
-    wire [15:0] clamp_value = 16'd0;
+    wire [15:0] clamp_value; //TODO
     
     assign clamp_obs = clamp_value;
 
@@ -37,16 +37,9 @@ module top (
     );
 
     always @(*) begin
-        if (!rst_n) begin
-            result = 16'd0;
-        end 
-        else if (diss_clk) begin
-            result = clamp_value;
-        end 
-        else begin
-            result = alu_result;
-        end
+       //TODO
     end
 
 endmodule
+
 

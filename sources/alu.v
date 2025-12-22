@@ -35,33 +35,16 @@ module alu (
                             4'b1000: state <= MUL_EXEC;
                             4'b1001: state <= DIV_EXEC;
                             default: begin
-                                case (opcode)
-                                    4'b0000: result <= A + B;
-                                    4'b0001: result <= A - B;
-                                    4'b0010: result <= A & B;
-                                    4'b0011: result <= A | B;
-                                    4'b0100: result <= A ^ B;
-                                    4'b0101: result <= ~(A | B);
-                                    4'b0110: result <= A << B[3:0];
-                                    4'b0111: result <= ~(A ^ B);
-                                endcase
+                             //TODO
                             end
                         endcase
                     end
                 end
                 MUL_EXEC: begin
-                    cycle_cnt <= cycle_cnt + 4'd1;
-                    if (cycle_cnt == 4'd3) begin
-                        result <= A * B;
-                        state  <= IDLE;
-                    end
+                    //TODO
                 end
                 DIV_EXEC: begin
-                    cycle_cnt <= cycle_cnt + 4'd1;
-                    if (cycle_cnt == 4'd7) begin
-                        result <= (B != 16'd0) ? A / B : 16'd0;
-                        state  <= IDLE;
-                    end
+                    //TODO
                 end
             endcase
         end
