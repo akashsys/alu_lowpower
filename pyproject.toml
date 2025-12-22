@@ -1,0 +1,10 @@
+name = "alu_lowpower"
+version = "0.1.0"
+description = "Low power 16-bit multi-cycle ALU verification project"
+requires-python = ">=3.10"
+dependencies = [
+    "cocotb>=1.8.0",
+    "pytest>=7.0.0",
+    "cocotb-test>=0.2.4",
+    "cocotb-bus>=0.2.1",
+]
