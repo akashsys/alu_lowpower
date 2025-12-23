@@ -70,4 +70,14 @@ Ensure all functional tests in test_alu_hidden.py pass, particularly the multi-c
 
 Verify that the clamp behavior fully protects downstream logic from observing unknown states during simulated power-off periods.
 
-Take the incomplete RTLs from sources/top.v and sources/alu.v and fill all the TODOs.
+Take the incomplete RTLs from sources/top.v , sources/alu.v and source/alu_clk_off and fill all the TODOs.
+
+You MUST implement the alu_clk_off logic in its own separate file: 'sources/alu_clk_off.v'. 
+   - Note: This file may be empty; you are responsible for defining the module header, ports, and logic based on the instantiation in top.v.
+   - top.v must instantiate this module and must NOT contain the module definition.
+
+GRADING PROTOCOL- 
+   - You must run the simulation/testbench before calling the 'grade_problem' tool.
+   - You MUST copy the actual terminal output (logs) from your successful test run and paste them into the 'transcript' argument of the 'grade_problem' tool.
+   - The word "PASS" must be visible in your transcript for the grader to award a reward of 1.0. 
+   - DO NOT USE "dummy transcript".
