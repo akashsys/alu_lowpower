@@ -5,12 +5,12 @@ This project represents a **late-stage Engineering Change Order (ECO) scenario**
 
 ---
 
-### 🚫 Critical Restriction (Non-Negotiable)
+### Critical Restriction (Non-Negotiable)
 
 The **Golden RTL files** (`top.v`, `alu.v`, `alu_clk_off.v`) are **FROZEN**.
 You are **strictly prohibited** from modifying the RTL to fix the bug.
 
-The fix **must be implemented entirely at the gate level** by manually editing the synthesized netlist (`gate_netlist.v`). This ECO must be applied through **explicit structural changes only**, using standard-cell instantiations.
+The fix **must be implemented entirely at the gate level** by manually editing the synthesized netlist (`gate_netlist.v`). This ECO must be applied through **explicit structural changes only**, using standard-cell instantiations. When performing the ECO on gate_netlist.v, do not use sed or string-replacement tools that pass file content as command-line arguments. Instead, write and execute a Python script that opens the file, iterates through it line-by-line, and writes the corrected lines to gate_netlist.v This is necessary to avoid 'Argument list too long' errors due to the file size.
 
 ---
 
@@ -182,7 +182,5 @@ No intermediate states, latency, or partial execution is acceptable during reset
   * You must identify FSM registers and inject reset logic into their data or enable paths
 * **Library compliance**
 
-  * Only cells defined in `my_cells.lib` may be used
-
----
+  * Only cells defined in `my_cells.lib` may be used.
 
