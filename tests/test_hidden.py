@@ -3,8 +3,6 @@ from cocotb.triggers import Timer, RisingEdge
 from cocotb.clock import Clock
 
 async def setup_dut(dut):
-    """Initialize signals and start clock"""
-    # Initialize the clock to 10ns period (100MHz)
     cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
     
     # Set initial signal values
@@ -28,7 +26,7 @@ async def test_reset_during_busy(dut):
     # 1. Start a multi-cycle Division operation (8 cycles)
     dut.A.value = 100
     dut.B.value = 5
-    dut.opcode.value = 0x9  # DIV opcode defined in specification
+    dut.opcode.value = 0x9 
     dut.start.value = 1
     await RisingEdge(dut.clk)
     dut.start.value = 0
@@ -40,8 +38,7 @@ async def test_reset_during_busy(dut):
     # 3. THE ECO TEST: Assert Reset mid-operation
     dut._log.info("Asserting reset while ALU is busy...")
     dut.rst_n.value = 0
-    
-    # Small delay to allow for combinatorial propagation through patched gates
+
     await Timer(1, units="ns")
 
     # 4. Final Verification
@@ -56,18 +53,17 @@ def test_alu_runner():
     from cocotb_tools.runner import get_runner
 
     sim = os.getenv("SIM", "icarus")
-    proj_path = Path(__file__).resolve().parent
 
-    # Sources include the behavioral cell models for simulation and the netlist
+    test_dir = Path(__file__).resolve().parent 
+
     sources = [
-        proj_path / "sources" / "gate_netlist.v",
-        proj_path / "sources" / "my_cells.v"
+        test_dir / "sources" / "gate_netlist.v",
+        test_dir / "sources" / "my_cells.v"
     ]
 
+    # Debug: This will help you see where it's looking in the logs
+    print(f"Checking for file at: {sources[0]}")
+
     runner = get_runner(sim)
-    # Build and run against the top module of the netlist
     runner.build(sources=sources, hdl_toplevel="top", always=True)
     runner.test(hdl_toplevel="top", test_module="test_hidden")
-
-
-
