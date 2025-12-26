@@ -1,83 +1,188 @@
-You are provided with an incomplete RTL implementation of a 16-bit ALU integrated into a power-aware system. The design uses an enable-based gating strategy and output clamping to model low-power silicon behavior. Your goal is to complete the TODO markers in alu.v and top.v so the design functions correctly across both high-performance execution and power-off scenarios.
+
+You are presented with a **gate-level netlist** of a **16-bit ALU** that has already been synthesized and integrated into a **power-aware system**. The design models realistic low-power silicon behavior through **enable-based clock gating**, **state preservation**, and **output isolation (clamping)** mechanisms.
+
+This project represents a **late-stage Engineering Change Order (ECO) scenario**. During post-synthesis verification, a **critical functional defect** has been identified: although an **asynchronous active-low reset signal (`rst_n`)** exists in the design, it is **disconnected from the internal Finite State Machine (FSM) registers** in the synthesized netlist. As a result, the ALU FSM powers up in an undefined state and may assert `busy` unpredictably.
+
+---
+
+### 🚫 Critical Restriction (Non-Negotiable)
+
+The **Golden RTL files** (`top.v`, `alu.v`, `alu_clk_off.v`) are **FROZEN**.
+You are **strictly prohibited** from modifying the RTL to fix the bug.
+
+The fix **must be implemented entirely at the gate level** by manually editing the synthesized netlist (`gate_netlist.v`). This ECO must be applied through **explicit structural changes only**, using standard-cell instantiations.
+
+---
+
+## Design Architecture and Clocking Model
+
+### Power Controller: `alu_clk_off`
+
+The `alu_clk_off` module represents a simplified **power-management controller**, similar to what exists in a real SoC. In physical silicon, such a block would manage transitions between **Active** and **Sleep** modes by controlling clock and power enables.
+
+### Clock Gating Behavior
+
+* Power-off behavior is controlled by the signal `diss_clk`
+* When `diss_clk` is asserted:
+
+  * The internal clock enable (`alu_en`) must be forced LOW
+  * No clock activity is allowed inside the ALU
+
+### State Preservation Requirement
+
+While `diss_clk` is high:
+
+* All sequential logic must **retain its current state**
+* FSM state registers and cycle-accurate counters must **not advance**
+* No partial execution or unintended transitions are permitted
+
+---
+
+## Output Clamping and Isolation
+
+### Why Clamping Is Required
+
+In real silicon, when a power-gated domain is turned off:
+
+* Internal node voltages collapse
+* Outputs may become floating, resulting in **X or Z values**
+
+If these undefined values propagate into always-on logic:
+
+* Meta-stability may occur
+* Illegal state transitions may be triggered
+* Excessive current draw or functional failure can result
+
+### Modeling Real Silicon Behavior
+
+The `clamp_value` logic in the `top` module acts as an **Isolation Cell**:
+
+* When `diss_clk` is asserted, outputs are forced to a known constant
+* This ensures the rest of the system always observes a **clean, deterministic value** (typically 0)
+* No floating or unknown values are allowed to escape the ALU power domain
+
+---
+
+## Functional Implementation Overview
+
+### ALU Interface
+
+* Operands: `A[15:0]`, `B[15:0]`
+* Opcode: `opcode[3:0]`
+* Control: `start`, `busy`
+
+---
+
+### Single-Cycle Operations
+
+These operations complete immediately when `start` is sampled in the **IDLE** state:
+
+* **Arithmetic / Logic**
+
+  * Add (`0x0`)
+  * Subtract (`0x1`)
+  * AND / OR / XOR / NOR (`0x2–0x5`)
+  * XNOR (`0x7`)
+
+* **Shift**
+
+  * Logical Left Shift (`0x6`)
+  * Operand `A` shifted by `B[3:0]`
+
+---
+
+### Multi-Cycle Sequential Operations
+
+These operations require accurate modeling of fixed hardware latency:
+
+* **Multiply (`4'b1000`)**
+
+  * Executes over exactly **4 clock cycles**
+  * `busy` must remain asserted throughout
+  * Result is latched only on the final cycle
+
+* **Divide (`4'b1001`)**
+
+  * Executes over exactly **8 clock cycles**
+  * Includes safety logic:
+
+    * Division-by-zero must produce a result of **zero**
+  * `busy` remains asserted until completion
+
+---
 
 
-DESIGN ARCHITECTURE AND CLOCKING-
-The system is partitioned into a power-gated ALU domain and a top-level controller that manages clock enabling and output isolation.
+In `gate_netlist.v`, the reset signal `rst_n`:
 
-Clock Gating: Power-off behavior is modeled via the diss_clk signal. When asserted, the internal clock enable signal (alu_en) must go low.
+* Exists at the top level
+* Does **not** influence the FSM state registers
+* Is effectively isolated from the sequential logic
 
-State Preservation: While diss_clk is high, the ALU internal state must not advance. All sequential logic, including the state machine and cycle counters, must freeze.
+---
 
-Safe Modeling: In real hardware, power gating causes outputs to become unknown (X/Z). You must ensure these unsafe values never propagate to the top-level result.
+### Your Task
 
-------------
+You must **manually modify `gate_netlist.v`** to restore the **Reset Protocol with absolute priority**.
 
-FUNCTIONAL IMPLEMENTATION REQUIREMENTS-
-The ALU processes 16-bit operands A and B based on a 4-bit opcode.
+### Required Reset Behavior (Strict)
 
-Single-Cycle Operations: The following operations must complete immediately when start is sampled in the idle state:
+* Reset dominance is **non-negotiable**
+* Whenever `rst_n` is asserted LOW:
 
-Opcode 4'b0000: Addition (A + B)
+  * The FSM must **immediately transition to the IDLE state (`2'b00`)**
+  * The `busy` signal must be forced to **0**
+  * All internal counters and state must be cleared
+* Reset must override:
 
-Opcode 4'b0001: Subtraction (A - B)
+  * Ongoing multiply/divide operations
+  * Clock gating via `diss_clk`
+  * Any enable (`EN`) or data (`D`) conditions
 
-Opcode 4'b0010: Bitwise AND
+No intermediate states, latency, or partial execution is acceptable during reset.
 
-Opcode 4'b0011: Bitwise OR
+---
 
-Opcode 4'b0100: Bitwise XOR
+## Files Provided
 
-Opcode 4'b0101: Bitwise NOR
+* `sources/gate_netlist.v`
+  The **broken synthesized netlist** requiring ECO patching
 
-Opcode 4'b0110: Shift-left logical (A shifted by B[3:0])
+* `sources/top.v`, `sources/alu.v`, `sources/alu_clk_off.v`
+  **Golden RTL reference files**
+  Use these to understand:
 
-Opcode 4'b0111: Bitwise XNOR
+  * FSM behavior
+  * State encoding
+  * Power-gating intent
+    **Do not modify these files**
 
-Multi-Cycle Sequential Operations: These operations require cycle-accurate modeling of hardware latency.
+* `sources/my_cells.v`
+  Behavioral models for cocotb simulation
 
-Multiply (Opcode 4'b1000): Must execute over exactly 4 clock cycles. The busy signal must remain high, and the result is latched only on the final cycle.
+* `sources/my_cells.lib`
+  Reference for:
 
-Divide (Opcode 4'b1001): Must execute over exactly 8 clock cycles. You must handle division by zero safely by producing a result of zero.
--------------
+  * Legal cell types
+  * Pin names and directions
+    This is your **only allowed hardware toolbox**
 
-OUTPUT CLAMPING AND ISOLATION
-To protect downstream logic when the ALU domain is powered off, you must implement a multiplexer-based isolation clamp in the top module.
+---
 
-Clamp Logic: When diss_clk is active, the top-level result must match the clamp_value defined in the hardware.
+## Constraints and Execution Rules
 
-Signal Integrity: No X or Z values should ever appear on the top-level output.
+* **Structural modification only**
 
+  * No `assign`, no `always`, no behavioral logic
+* **Gate instantiation only**
 
-Observability: The clamp_value must be driven to the clamp_obs port so it can be verified by the testbench.
+  * Example:
+    `AN2 g1 (.A(in1), .B(in2), .X(out));`
+* **Manual patching required**
 
-------------------
-PRIORITY AND RESET PROTOCOL
-Your implementation must strictly follow this logic hierarchy:
+  * You must identify FSM registers and inject reset logic into their data or enable paths
+* **Library compliance**
 
-Reset (Highest Priority): Forces the ALU to IDLE, clears all internal counters, and drives the output to a safe value.
+  * Only cells defined in `my_cells.lib` may be used
 
-Power-Off: When diss_clk is high, the output reflects the clamp value regardless of internal ALU activity.
+---
 
-Functional: Normal ALU results are only visible when reset is high and the power domain is on.
------------------------
-
-CONSTRAINTS AND EXPECTED OUTCOME
-Do not modify module ports or interfaces.
-
-Use synthesizable Verilog only.
-
-Ensure all functional tests in test_alu_hidden.py pass, particularly the multi-cycle timing checks.
-
-Verify that the clamp behavior fully protects downstream logic from observing unknown states during simulated power-off periods.
-
-Take the incomplete RTLs from sources/top.v , sources/alu.v and source/alu_clk_off and fill all the TODOs.
-
-You MUST implement the alu_clk_off logic in its own separate file: 'sources/alu_clk_off.v'. 
-   - Note: This file may be empty; you are responsible for defining the module header, ports, and logic based on the instantiation in top.v.
-   - top.v must instantiate this module and must NOT contain the module definition.
-
-GRADING PROTOCOL- 
-   - You must run the simulation/testbench before calling the 'grade_problem' tool.
-   - You MUST copy the actual terminal output (logs) from your successful test run and paste them into the 'transcript' argument of the 'grade_problem' tool.
-   - The word "PASS" must be visible in your transcript for the grader to award a reward of 1.0. 
-   - DO NOT USE "dummy transcript".

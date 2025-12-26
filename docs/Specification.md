@@ -91,35 +91,4 @@ Multi-cycle operations utilize an internal state machine and cycle counter to ma
 * Division Timing: For opcode 4'b1001, the ALU stays in the DIV_EXEC state for 8 cycles. The result is calculated and latched when cycle_cnt reaches 7.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 The current synthesized netlist was generated from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. While the rst_n pin exists at the top level, it is functionally disconnected from the ALU FSM state registers.
-
-Your Objective: Patch the netlist to restore the intended reset behavior. Specifically, the rst_n signal must be tied into the logic paths of the FSM registers so that asserting rst_n low immediately forces the ALU to its IDLE (2'b00) state, driving the busy signal to 0. This must be achieved using only the standard cells available in the provided library.
-
