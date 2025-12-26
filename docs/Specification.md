@@ -1,12 +1,24 @@
-### Power-Aware ALU Top – Revised Design Specification
+### Power-Aware ALU
 
-### OVERVIEW
+
+### **OVERVIEW**
 
 The Arithmetic Logic Unit (ALU) is a synchronous digital block designed for 16-bit arithmetic and logical operations. This design incorporates power-aware features by modeling a Power-Off state through Clock Enabling Control and Output Clamping. These mechanisms ensure the design behaves predictably when the ALU power domain is logically disconnected, preventing invalid data propagation.
 
+This design intentionally represents a **late-stage Engineering Change Order (ECO) scenario**. The current synthesized netlist was generated from Yosys tool from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. While the rst_n pin exists at the top level, it is functionally disconnected from the ALU FSM state registers.
+
+Task here involves patching the netlist to restore the intended reset behavior. 
+
+During post-synthesis and power-aware verification, a functional issue was identified related to **power-off behavior and output determinism**. At this point in the project lifecycle:
+
+* RTL has already been synthesized
+* Module interfaces are frozen
+* Full re-synthesis is not permitted
+* Only minimal, localized RTL changes are allowed
+
 ---
 
-### INPUTS AND OUTPUTS
+### **INPUTS AND OUTPUTS**
 
 * CLK: The system clock driving all internal sequential logic.
 * RST_N: An active-low asynchronous reset that initializes all internal registers.
@@ -20,7 +32,7 @@ The Arithmetic Logic Unit (ALU) is a synchronous digital block designed for 16-b
 
 ---
 
-### CLOCK ENABLING AND POWER-OFF LOGIC
+### **CLOCK ENABLING AND POWER-OFF LOGIC**
 
 In this architecture, power gating is modeled using an Enable-based Gating strategy rather than physically removing the clock source:
 
@@ -30,20 +42,20 @@ In this architecture, power gating is modeled using an Enable-based Gating strat
 
 ---
 
-### OUTPUT CLAMPING BEHAVIOR
+### **OUTPUT CLAMPING BEHAVIOR**
 
 When the ALU power domain is OFF (diss_clk = 1), the output must be driven to a deterministic value via a multiplexer in the top module.
 
-Why Clamping is Required:
+**Why Clamping is Required:**
 In a real-world SoC (System on Chip), when a power domain is gated (turned off), its output signals often become floating or undefined (represented as X or Z in simulation). If these undefined signals propagate to other parts of the chip that are still ON, they can cause:
 
-1. Metastability: Undefined voltages can cause downstream transistors to enter invalid states.
-2. Functional Failures: Logic gates receiving an X or Z may produce unpredictable results, crashing the system.
-3. Power Leakage: Floating inputs can cause high current draw in CMOS gates.
+1. Metastability
+2. Functional Failures
+3. Power Leakage
 
 To prevent this, an Isolation Cell (modeled here as a Mux-based clamp) is used to ensure the RESULT remains at a known, safe value.
 
-Clamping Implementation:
+**Clamping Implementation:**
 
 * Clamp Value: The design uses a fixed constant of 16'd0 as the safe state.
 * Determinism: The specification requires that the clamp value must always be a known value (0 or 1) and never X or Z.
@@ -51,7 +63,7 @@ Clamping Implementation:
 
 ---
 
-### FUNCTIONAL OPERATION AND OPCODE LIST
+### **FUNCTIONAL OPERATION AND OPCODE LIST**
 
 The following list defines the 4-bit opcode values and the corresponding operation performed by the ALU.
 
@@ -68,7 +80,7 @@ The following list defines the 4-bit opcode values and the corresponding operati
 
 ---
 
-### MULTI-CYCLE SEQUENTIAL OPERATIONS
+### **MULTI-CYCLE SEQUENTIAL OPERATIONS**
 
 Multi-cycle operations utilize an internal state machine and cycle counter to manage execution over several clock periods.
 
@@ -77,3 +89,37 @@ Multi-cycle operations utilize an internal state machine and cycle counter to ma
 * Cycle Counting: An internal cycle_cnt increments on every active clock edge while the ALU is in an execution state.
 * Multiplication Timing: For opcode 4'b1000, the ALU stays in the MUL_EXEC state for 4 cycles. The result is calculated and latched when cycle_cnt reaches 3.
 * Division Timing: For opcode 4'b1001, the ALU stays in the DIV_EXEC state for 8 cycles. The result is calculated and latched when cycle_cnt reaches 7.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The current synthesized netlist was generated from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. While the rst_n pin exists at the top level, it is functionally disconnected from the ALU FSM state registers.
+
+Your Objective: Patch the netlist to restore the intended reset behavior. Specifically, the rst_n signal must be tied into the logic paths of the FSM registers so that asserting rst_n low immediately forces the ALU to its IDLE (2'b00) state, driving the busy signal to 0. This must be achieved using only the standard cells available in the provided library.
+
