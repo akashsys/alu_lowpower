@@ -3,6 +3,7 @@ from cocotb.triggers import Timer, RisingEdge
 from cocotb.clock import Clock
 
 async def setup_dut(dut):
+    """Initialize signals and start clock"""
     cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
     
     # Set initial signal values
@@ -11,7 +12,8 @@ async def setup_dut(dut):
     dut.opcode.value = 0
     dut.A.value = 0
     dut.B.value = 0
-    dut.diss_clk.value = 0 # Initialize the clock disable signal
+    # NEW: Drive diss_clk to 0 to ensure the ALU clock is enabled
+    dut.diss_clk.value = 0 
     
     # Perform a Power-on reset
     dut.rst_n.value = 0
@@ -32,19 +34,19 @@ async def test_reset_during_busy(dut):
     await RisingEdge(dut.clk)
     dut.start.value = 0
     
-    # 2. Verify ALU is busy 
+    # 2. Verify ALU has moved out of IDLE and is now busy
+    # CHANGE: Access busy via the 'u_alu' instance inside 'top'
     await RisingEdge(dut.clk)
-    assert dut.u_alu.busy.value == 1
+    assert dut.u_alu.busy.value == 1, "ALU should be BUSY during Division"
 
     # 3. THE ECO TEST: Assert Reset mid-operation
     dut._log.info("Asserting reset while ALU is busy...")
     dut.rst_n.value = 0
-
-    # Wait a small amount of time for the combinational logic to propagate
+    
     await Timer(1, units="ns")
 
     # 4. Final Verification
-    # CHANGE: Access busy via the hierarchy 'u_alu'
+    # CHANGE: Access busy via 'u_alu'
     assert dut.u_alu.busy.value == 0, "ERROR: busy signal failed to reset to 0!"
     dut._log.info("SUCCESS: busy signal correctly reset to 0.")
 
@@ -54,12 +56,12 @@ def test_alu_runner():
     from cocotb_tools.runner import get_runner
 
     sim = os.getenv("SIM", "icarus")
-    test_dir = Path(__file__).resolve().parent 
+    # Correct the project path to reach the 'sources' folder outside 'tests'
+    proj_path = Path(__file__).resolve().parent.parent 
 
-    # Ensure these paths match your folder structure
     sources = [
-        test_dir / "sources" / "gate_netlist.v",
-        test_dir / "sources" / "my_cells.v"
+        proj_path / "sources" / "gate_netlist.v",
+        proj_path / "sources" / "my_cells.v"
     ]
 
     runner = get_runner(sim)
