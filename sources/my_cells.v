@@ -18,12 +18,12 @@ module DFF (input D, input CLK, output reg Q);
     always @(posedge CLK) Q <= D;
 endmodule
 
-// D-Flip-Flop with Clock Enable (The broken cell in current netlist)
+// D-Flip-Flop with Clock Enable
 module DFFE (input D, input CLK, input EN, output reg Q);
     always @(posedge CLK) if (EN) Q <= D;
 endmodule
 
-// D-Flip-Flop with Asynchronous Reset (The CORRECT ECO Choice)
+// D-Flip-Flop with Asynchronous Reset
 module DFFR (input D, input CLK, input RST_N, output reg Q);
     always @(posedge CLK or negedge RST_N) begin
         if (!RST_N) Q <= 1'b0;
@@ -31,7 +31,7 @@ module DFFR (input D, input CLK, input RST_N, output reg Q);
     end
 endmodule
 
-// D-Flip-Flop with Asynchronous Set (TRAP: Resets state to 1)
+// D-Flip-Flop with Asynchronous Set
 module DFFS (input D, input CLK, input SET_N, output reg Q);
     always @(posedge CLK or negedge SET_N) begin
         if (!SET_N) Q <= 1'b1;
@@ -41,7 +41,7 @@ endmodule
 
 
 
-// D-Flip-Flop with Set and Reset (TRAP: Adds wiring complexity)
+// D-Flip-Flop with Set and Reset
 module DFFSR (input D, input CLK, input RST_N, input SET_N, output reg Q);
     always @(posedge CLK or negedge RST_N or negedge SET_N) begin
         if (!RST_N)      Q <= 1'b0;
@@ -52,7 +52,7 @@ endmodule
 
 
 
-// D-Flip-Flop with Reset and Enable (DISTRACTOR: High complexity)
+// D-Flip-Flop with Reset and Enable
 module DFFRE (input D, input CLK, input EN, input RST_N, output reg Q);
     always @(posedge CLK or negedge RST_N) begin
         if (!RST_N) Q <= 1'b0;
