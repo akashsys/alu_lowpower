@@ -1,7 +1,6 @@
-
 You are presented with a **gate-level netlist** of a **16-bit ALU** that has already been synthesized and integrated into a **power-aware system**. The design models realistic low-power silicon behavior through **enable-based clock gating**, **state preservation**, and **output isolation (clamping)** mechanisms.
 
-This project represents a **late-stage Engineering Change Order (ECO) scenario**. During post-synthesis verification, a **critical functional defect** has been identified: although an **asynchronous active-low reset signal (`rst_n`)** exists in the design, it is **disconnected from the internal Finite State Machine (FSM) registers** in the synthesized netlist. As a result, the ALU FSM powers up in an undefined state and may assert `busy` unpredictably.
+This project represents a **late-stage Engineering Change Order (ECO) scenario**. Post-synthesis testing shows that the ALU does not start up correctly and acts randomly after a reset. The busy signal often turns on by itself, and the ALU does not respond to start commands after a cold boot. You must look through gate_netlist.v to find why the system is not resetting properly and fix the gate-level code so the design follows the reset rules
 
 ---
 
@@ -10,7 +9,7 @@ This project represents a **late-stage Engineering Change Order (ECO) scenario**
 The **Golden RTL files** (`top.v`, `alu.v`, `alu_clk_off.v`) are **FROZEN**.
 You are **strictly prohibited** from modifying the RTL to fix the bug.
 
-The fix **must be implemented entirely at the gate level** by manually editing the synthesized netlist (`gate_netlist.v`). This ECO must be applied through **explicit structural changes only**, using standard-cell instantiations. When performing the ECO on gate_netlist.v, do not use sed or string-replacement tools that pass file content as command-line arguments. Instead, write and execute a Python script that opens the file, iterates through it line-by-line, and writes the corrected lines to gate_netlist.v This is necessary to avoid 'Argument list too long' errors due to the file size.
+When performing the ECO on gate_netlist.v, you must not use sed, awk, or any string-replacement tools that pass file content as command-line arguments, as this will trigger an 'Argument list too long' error due to the file's size. Instead, you are required to write and execute a Python script that employs a memory-efficient atomic write strategy: the script must open sources/gate_netlist.v for reading and a new temporary file for writing, iterating through the netlist line-by-line to apply the structural gate-level changes. Once the iteration is complete, the script must close both files and programmatically overwrite the original sources/gate_netlist.v with the patched version to ensure the changes are committed to the filesystem before you proceed to verification
 
 ---
 
@@ -111,36 +110,9 @@ These operations require accurate modeling of fixed hardware latency:
 
 ---
 
-
-In `gate_netlist.v`, the reset signal `rst_n`:
-
-* Exists at the top level
-* Does **not** influence the FSM state registers
-* Is effectively isolated from the sequential logic
-
----
-
 ### Your Task
 
-You must **manually modify `gate_netlist.v`** to restore the **Reset Protocol with absolute priority**.
-
-### Required Reset Behavior (Strict)
-
-* Reset dominance is **non-negotiable**
-* Whenever `rst_n` is asserted LOW:
-
-  * The FSM must **immediately transition to the IDLE state (`2'b00`)**
-  * The `busy` signal must be forced to **0**
-  * All internal counters and state must be cleared
-* Reset must override:
-
-  * Ongoing multiply/divide operations
-  * Clock gating via `diss_clk`
-  * Any enable (`EN`) or data (`D`) conditions
-
-No intermediate states, latency, or partial execution is acceptable during reset.
-
----
+You must **manually modify `gate_netlist.v`** and find what logic is missing in it.
 
 ## Files Provided
 
@@ -178,9 +150,6 @@ No intermediate states, latency, or partial execution is acceptable during reset
   * Example:
     `AN2 g1 (.A(in1), .B(in2), .X(out));`
 * **Manual patching required**
-
-  * You must identify FSM registers and inject reset logic into their data or enable paths
-* **Library compliance**
 
   * Only cells defined in `my_cells.lib` may be used.
 
