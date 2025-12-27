@@ -5,9 +5,7 @@
 
 The Arithmetic Logic Unit (ALU) is a synchronous digital block designed for 16-bit arithmetic and logical operations. This design incorporates power-aware features by modeling a Power-Off state through Clock Enabling Control and Output Clamping. These mechanisms ensure the design behaves predictably when the ALU power domain is logically disconnected, preventing invalid data propagation.
 
-This design intentionally represents a **late-stage Engineering Change Order (ECO) scenario**. The current synthesized netlist was generated from Yosys tool from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. While the rst_n pin exists at the top level, it is functionally disconnected from the ALU FSM state registers.
-
-Task here involves patching the netlist to restore the intended reset behavior. 
+This design intentionally represents a **late-stage Engineering Change Order (ECO) scenario**. The current synthesized netlist was generated from Yosys tool from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. 
 
 During post-synthesis and power-aware verification, a functional issue was identified related to **power-off behavior and output determinism**. At this point in the project lifecycle:
 
@@ -89,6 +87,3 @@ Multi-cycle operations utilize an internal state machine and cycle counter to ma
 * Cycle Counting: An internal cycle_cnt increments on every active clock edge while the ALU is in an execution state.
 * Multiplication Timing: For opcode 4'b1000, the ALU stays in the MUL_EXEC state for 4 cycles. The result is calculated and latched when cycle_cnt reaches 3.
 * Division Timing: For opcode 4'b1001, the ALU stays in the DIV_EXEC state for 8 cycles. The result is calculated and latched when cycle_cnt reaches 7.
-
-
-The current synthesized netlist was generated from a version of the RTL where the asynchronous reset logic was incorrectly optimized or omitted. While the rst_n pin exists at the top level, it is functionally disconnected from the ALU FSM state registers.
