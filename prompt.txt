@@ -9,7 +9,7 @@ Docker Container: openlane
 
 Before performing any analysis or netlist changes, you MUST execute the command to load the OpenSTA:
 
-Command: bash sources/run_sta_bridge.sh
+Command: bash sources/run_sta_cmd.sh
 Important: This script handles the connection to the tools. After running it, the timing_report.rpt is generated INSIDE the Docker container.
 To Read the Report: You MUST use this command to view the timing data: docker exec openlane cat /openlane/PHINITY/timing_report.rpt
 
@@ -105,14 +105,14 @@ Execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky1
 
 6. Verification and HUD Reporting
 Re-run the STA tool inside the Docker container.
-Trigger STA: Run bash sources/run_sta_bridge.sh.
+Trigger STA: Run bash sources/run_sta_cmd.sh.
 Read the Results: Use command- docker exec openlane cat /openlane/PHINITY/timing_report.rpt. Parse the output directly from the terminal to find the Slack values
 
 ===========FINAL EXECUTION FLOW===================
 You must follow this exact sequence to achieve timing closure. Each iteration aims to recover a portion of the negative slack.
 
 PHASE 1: THE INITIAL AUDIT
-Trigger STA: Run bash sources/run_sta_bridge.sh
+Trigger STA: Run bash sources/run_sta_cmd.sh
 
 Read the Results: Execute docker exec openlane cat /openlane/PHINITY/timing_report.rpt
 
