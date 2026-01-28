@@ -9,9 +9,9 @@ Docker Container: openlane
 
 Before performing any analysis or netlist changes, you MUST execute the command to load the OpenSTA:
 
-Command: docker exec openlane bash -c "cd /openlane/PHINITY && sta -no_init run_sta.tcl"
-Now inside the openlane/PHINITY you will get all the files copied and a most important file which is timing_report.rpt
-Locate 'timing_report.rpt' in the project root and open and parse the 'slack' values.
+Command: bash sources/run_sta_bridge.sh
+Important: This script handles the connection to the tools. After running it, the timing_report.rpt is generated INSIDE the Docker container.
+To Read the Report: You MUST use this command to view the timing data: docker exec openlane cat /openlane/PHINITY/timing_report.rpt
 
 Read timing_report.rpt and identify the Worst Negative Slack (WNS). THE TIMING REPORT WILL LOOK SOMETHING LIKE THIS (EXAMPLE)- 
 
@@ -105,18 +105,18 @@ Execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky1
 
 6. Verification and HUD Reporting
 Re-run the STA tool inside the Docker container.
-Iteration Rule: After every swap, you MUST re-run "docker exec STA" command. Do not assume the slack is fixed until you see the updated timing_report.rpt showing a positive value
-t.
+Trigger STA: Run bash sources/run_sta_bridge.sh.
+Read the Results: Use command- docker exec openlane cat /openlane/PHINITY/timing_report.rpt. Parse the output directly from the terminal to find the Slack values
 
 ===========FINAL EXECUTION FLOW===================
 You must follow this exact sequence to achieve timing closure. Each iteration aims to recover a portion of the negative slack.
 
 PHASE 1: THE INITIAL AUDIT
-Trigger STA: Run the following command to generate the timing data: docker exec openlane bash -c "cd /openlane/PHINITY && sta -no_init run_sta.tcl"
+Trigger STA: Run bash sources/run_sta_bridge.sh
 
-Read the Results: Open timing_report.rpt.
+Read the Results: Execute docker exec openlane cat /openlane/PHINITY/timing_report.rpt
 
-Parse WNS: If Slack (VIOLATED) is present (e.g., -0.36ns), proceed to Phase 2. If Slack is positive, the mission is successful.
+Parse WNS: Look for the Slack value. If negative, identify the instance for the ECO.
 
 PHASE 2: BOTTLENECK ANALYSIS
 Trace the Path: Start from the Launch Flop Q pin and follow the combinational gates to the Capture Flop D pin.
@@ -131,9 +131,9 @@ Apply the Fix: Use the Python tool to upsize the identified gate in the Git root
 Example: Swapping _0 to _1 or _2 as per the hierarchy: _4 > _2 > _1 > _0.
 
 PHASE 4: RE-VERIFICATION (THE LOOP)
-Sync check: Note that because of Docker volume mapping, your change to sources/netlist.v is instantly visible to the Docker container.
+Sync Check: Confirm sources/netlist.v has been saved. Your changes are automatically seen by the openlane container.
+Loop: Re-run PHASE 1 immediately to verify the new slack.
 
-Re-Run:Repeat PHASE 1 immediately.
 
 Analyze Delta: Compare the new WNS to the old WNS. Success Check: If WNS is now -0.23ns (improved from -0.56ns), identify the next bottleneck and repeat from Phase 2.
 
