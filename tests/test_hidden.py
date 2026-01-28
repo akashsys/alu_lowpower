@@ -16,9 +16,8 @@ def test_vlsi_signoff_runner():
     """
     Orchestrates the sync to Docker and the Cocotb simulation build.
     """
-    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
-    subprocess.run(["docker", "context", "create", "windows", "--docker", "host=tcp://host.docker.internal:2375"], check=False)
-    subprocess.run(["docker", "context", "use", "windows"], check=False)
+    docker_host = "tcp://127.0.0.1:2375" if os.name == 'nt' else "tcp://host.docker.internal:2375"
+    os.environ["DOCKER_HOST"] = docker_host
     sim = os.getenv("SIM", "icarus")
     # Correct path to reach 'sources' from 'tests' folder
     proj_path = Path(__file__).resolve().parent.parent 
@@ -66,7 +65,8 @@ import cocotb
 @cocotb.test()
 async def test_wns_slack(dut):
     """Cocotb Test: Worst Negative Slack check via Docker STA"""
-    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+    docker_host = "tcp://127.0.0.1:2375" if os.name == 'nt' else "tcp://host.docker.internal:2375"
+    os.environ["DOCKER_HOST"] = docker_host
 
     # --- Step 1: Execute STA ---
     dut._log.info("Running OpenSTA inside Docker container...")
