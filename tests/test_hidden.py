@@ -1,69 +1,101 @@
-import cocotb
-from cocotb.triggers import Timer, RisingEdge
-from cocotb.clock import Clock
+import os
+import re
+import subprocess
+import pytest
+from pathlib import Path
+from cocotb_tools.runner import get_runner
 
-async def setup_dut(dut):
-    """Initialize signals and start clock"""
-    cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+# --- CONFIGURATION ---
+CONTAINER_ID = "openlane"
+CONTAINER_PATH = "/openlane/PHINITY"
+
+# ==============================================================================
+# 1. THE PYTEST RUNNER
+# ==============================================================================
+def test_vlsi_signoff_runner():
+    """
+    Orchestrates the sync to Docker and the Cocotb simulation build.
+    """
+    sim = os.getenv("SIM", "icarus")
+    # Correct path to reach 'sources' from 'tests' folder
+    proj_path = Path(__file__).resolve().parent.parent 
+    sources_dir = proj_path / "sources"
+
+    # --- Step 1: Sync to Docker for STA ---
+    # This sends .lib, .sdc, and .tcl to the container
+    print(f"\nSyncing to Docker container {CONTAINER_ID}...")
+    subprocess.run(["docker", "exec", CONTAINER_ID, "mkdir", "-p", CONTAINER_PATH], check=True)
+    subprocess.run(f"docker cp \"{sources_dir}/.\" {CONTAINER_ID}:{CONTAINER_PATH}/", shell=True, check=True)
+
+    # --- Step 2: Setup Cocotb Runner ---
+    # Only Verilog design files go in 'sources'
+    sources = [sources_dir / "netlist.v"]
     
-    # Set initial signal values
-    dut.rst_n.value = 1
-    dut.start.value = 0
-    dut.opcode.value = 0
-    dut.A.value = 0
-    dut.B.value = 0
-    # NEW: Drive diss_clk to 0 to ensure the ALU clock is enabled
-    dut.diss_clk.value = 0 
+    cells_path = sources_dir / "cells"
+    models_path = sources_dir / "models"
     
-    # Perform a Power-on reset
-    dut.rst_n.value = 0
-    await Timer(20, units="ns")
-    dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
+    runner = get_runner(sim)
+
+    runner.build(
+            sources=sources,
+            hdl_toplevel="riscv_core",
+            always=True,
+            build_args=[
+                f"-y{sources_dir}/cells/base",
+                f"-y{sources_dir}/cells/strength", 
+                f"-y{sources_dir}/models",         
+                f"-I{sources_dir}/cells/base",     
+                f"-I{sources_dir}/models",   
+                "-Y.v",     
+                "-grelative-include",  # Keep this as its own string
+            ]   )    
+    # Step 3: Trigger the Cocotb tests defined below
+    runner.test(
+        hdl_toplevel="riscv_core",
+        test_module=Path(__file__).stem
+    )
+
+# ==============================================================================
+# 2. THE COCOTB TESTS (VLSI Sign-off Checks)
+# ==============================================================================
+import cocotb
 
 @cocotb.test()
-async def test_reset_during_busy(dut):
-    """Test that rst_n forces busy to 0 even during a DIV operation"""
-    await setup_dut(dut)
+async def test_wns_slack(dut):
+    """Cocotb Test: Worst Negative Slack check via Docker STA"""
 
-    # 1. Start a multi-cycle Division operation
-    dut.A.value = 100
-    dut.B.value = 5
-    dut.opcode.value = 0x9 
-    dut.start.value = 1
-    await RisingEdge(dut.clk)
-    dut.start.value = 0
-    
-    # 2. Verify ALU has moved out of IDLE and is now busy
-    # CHANGE: Access busy via the 'u_alu' instance inside 'top'
-    await RisingEdge(dut.clk)
-    assert dut.u_alu.busy.value == 1, "ALU should be BUSY during Division"
+    # --- Step 1: Execute STA ---
+    dut._log.info("Running OpenSTA inside Docker container...")
+    cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", f"cd {CONTAINER_PATH} && sta -no_init run_sta.tcl"]
+    subprocess.run(cmd, check=True)
 
-    # 3. THE ECO TEST: Assert Reset mid-operation
-    dut._log.info("Asserting reset while ALU is busy...")
-    dut.rst_n.value = 0
-    
-    await Timer(1, units="ns")
+    # --- Step 2: Copy the report back to Windows ---
+    subprocess.run(f"docker cp {CONTAINER_ID}:{CONTAINER_PATH}/timing_report.rpt .", shell=True, check=True)
 
-    # 4. Final Verification
-    # CHANGE: Access busy via 'u_alu'
-    assert dut.u_alu.busy.value == 0, "ERROR: busy signal failed to reset to 0!"
-    dut._log.info("SUCCESS: busy signal correctly reset to 0.")
+    # --- Step 3: Parse the Report ---
+    with open("timing_report.rpt", "r") as f:
+        report_content = f.read()
 
-def test_alu_runner():
-    import os
-    from pathlib import Path
-    from cocotb_tools.runner import get_runner
+    # --- Step 4: Extract WNS ---
+    all_slacks = re.findall(r"([-+]?[\d\.]+)\s+slack", report_content)
 
-    sim = os.getenv("SIM", "icarus")
-    # Correct the project path to reach the 'sources' folder outside 'tests'
-    proj_path = Path(__file__).resolve().parent.parent 
+    if all_slacks:
+        wns = min(float(s) for s in all_slacks)
+        
+        # Determine the status message
+        if wns >= 0:
+            msg = f"TIMING MET : WNS is {wns}ns"
+            dut._log.info(msg)
+        else:
+            msg = f"TIMING VIOLATED : WNS is {wns}ns"
+            dut._log.error(msg)
 
-    sources = [
-        proj_path / "sources" / "gate_netlist.v",
-        proj_path / "sources" / "my_cells.v"
-    ]
-
-    runner = get_runner(sim)
-    runner.build(sources=sources, hdl_toplevel="top", always=True)
-    runner.test(hdl_toplevel="top", test_module="test_hidden")
+        # The assertion ensures the 'STATUS' column shows PASS/FAIL
+        # The message here often appears in the 'Notes' or failure log
+        assert wns >= 0, msg
+        
+        # Explicitly log the final result so it appears right above the table
+        print(f"\nREGRESSION RESULT: {msg}\n")
+        
+    else:
+        raise RuntimeError("Slack not found in timing_report.rpt. Check your SDC constraints.")
