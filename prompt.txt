@@ -1,0 +1,151 @@
+1. TASK
+Your goal is to achieve timing closure (WNS >= 0) for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
+
+2. Environment Setup
+Project Root: /openlane/PHINITY
+Docker Container: openlane 
+
+3. Step-by-Step Execution Protocol
+
+Before performing any analysis or netlist changes, you MUST execute the command to load the OpenSTA:
+
+Command: bash sources/run_sta_bridge.sh
+Important: This script handles the connection to the tools. After running it, the timing_report.rpt is generated INSIDE the Docker container.
+To Read the Report: You MUST use this command to view the timing data: docker exec openlane cat /openlane/PHINITY/timing_report.rpt
+
+Read timing_report.rpt and identify the Worst Negative Slack (WNS). THE TIMING REPORT WILL LOOK SOMETHING LIKE THIS (EXAMPLE)- 
+
+===========================================================================================================================
+Startpoint: _6796_ (rising edge-triggered flip-flop clocked by clk)
+Endpoint: _7257_ (rising edge-triggered flip-flop clocked by clk)
+Path Group: clk
+Path Type: max
+
+  Delay    Time   Description
+---------------------------------------------------------
+   0.00    0.00   clock clk (rise edge)
+   0.00    0.00   clock network delay (ideal)
+   0.00    0.00 ^ _6796_/CLK (sky130_fd_sc_hd__edfxtp_1)
+   0.48    0.48 v _6796_/Q (sky130_fd_sc_hd__edfxtp_1)
+   0.22    0.69 v _2599_/Y (sky130_fd_sc_hd__xnor2_1)
+   0.26    0.95 ^ _5491_/Y (sky130_fd_sc_hd__o21ai_0)
+   0.14    1.09 v _5519_/Y (sky130_fd_sc_hd__a221oi_1)
+   0.33    1.42 ^ _5537_/Y (sky130_fd_sc_hd__o31ai_1)
+   0.26    1.69 ^ _5555_/X (sky130_fd_sc_hd__maj3_1)
+   0.11    1.80 v _5574_/Y (sky130_fd_sc_hd__a21boi_0)
+   0.27    2.07 ^ _5600_/Y (sky130_fd_sc_hd__o21ai_0)
+   0.14    2.20 v _5632_/Y (sky130_fd_sc_hd__a221oi_1)
+   0.34    2.55 ^ _5668_/Y (sky130_fd_sc_hd__o311ai_0)
+   0.17    2.72 v _5710_/Y (sky130_fd_sc_hd__a311oi_1)
+   0.53    3.25 ^ _5748_/Y (sky130_fd_sc_hd__o311ai_0)
+   0.19    3.44 v _5791_/Y (sky130_fd_sc_hd__a311oi_1)
+   0.35    3.79 ^ _5832_/Y (sky130_fd_sc_hd__o311ai_0)
+   0.17    3.96 v _5875_/Y (sky130_fd_sc_hd__a311oi_1)
+   0.51    4.47 ^ _5914_/Y (sky130_fd_sc_hd__o311ai_0)
+   0.21    4.68 v _5955_/Y (sky130_fd_sc_hd__a311oi_1)
+   0.43    5.11 ^ _5991_/Y (sky130_fd_sc_hd__o311ai_0)
+   0.22    5.32 v _6012_/Y (sky130_fd_sc_hd__a32oi_1)
+   0.31    5.63 v _6033_/X (sky130_fd_sc_hd__a211o_1)
+   0.17    5.80 v _6048_/X (sky130_fd_sc_hd__a21bo_1)
+   0.22    6.02 ^ _6057_/Y (sky130_fd_sc_hd__a311oi_1)
+   0.09    6.10 v _6058_/Y (sky130_fd_sc_hd__o21ai_0)
+   0.00    6.10 v _7257_/D (sky130_fd_sc_hd__edfxtp_1)
+           6.10   data arrival time
+
+   5.90    5.90   clock clk (rise edge)
+   0.00    5.90   clock network delay (ideal)
+  -0.10    5.80   clock uncertainty
+   0.00    5.80   clock reconvergence pessimism
+           5.80 ^ _7257_/CLK (sky130_fd_sc_hd__edfxtp_1)
+  -0.26    5.54   library setup time
+           5.54   data required time
+---------------------------------------------------------
+           5.54   data required time
+          -6.10   data arrival time
+---------------------------------------------------------
+          -0.56   slack (VIOLATED)
+================================================================================================================================
+
+
+When you open timing_report.rpt, do not just look at the slack. You must follow the data's journey from the Launch Flop to the Capture Flop. 
+Use this STEPS TO READ the report
+
+:1. The Launch Phase (Ignore for Swapping)The first four lines show the clock hitting the first flip-flop (_6796_).Clock Network Delay: This is the time it takes for the clock signal to reach the flop.CLK-to-Q Delay: See the line 0.48 v _6796_/Q. This is the internal delay of the flip-flop itself.Rule: You cannot swap the Launch Flop to fix combinational timing. Your analysis starts AFTER this line.
+
+2. The Combinational block: (The Target Zone)Everything between the Launch Flop's Q pin and the Capture Flop's D pin is your playground. In this report, the data travels through 22 gates.The First Step: Data hits _2599_/Y (an XNOR gate).The Journey: It then passes through AOI (And-Or-Invert), OAI, and MAJ (Majority) gates. What to Look For: Identify "Heavy" delays.
+
+ For example:_5748_/Y takes 0.53ns._5914_/Y takes 0.51ns. This is where the "Setup Violation" is born.
+
+
+3. The Arrival at the Finish Line. The line 6.10 v _7257_/D is the moment the data finally arrives at the destination. 
+The Problem: 6.10ns is too slow. The data is "slow" because it had to pass through too many weak gates (like those drive-strength 0 cells).
+
+
+4. The "Required Time" (The Deadline)Look at the bottom section. The clock for the next cycle hits at 5.90ns. We subtract 0.10ns for uncertainty (jitter) and 0.26ns for the "Library Setup Time". The Deadline: 5.54ns.
+
+SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
+
+
+5. Your TASK as an Agent: Find the gates in the "Target Zone" with a delay higher .Check their drive strength (the number at the end of the cell name, like _0 or _1).If it is _0, it is a "weak driver." Upsize it to _1 or _2 using the  reducing those 0.53ns and 0.51ns delays down to 0.20ns, you will turn that negative slack into a Positive Slack (MET).
+
+ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
+WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST)
+
+If the slack is negative, analyze the cells in the critical path.
+
+Look for cells where Delay is high relative to others. Select a candidate gate for upsizing (e.g., changing sky130_fd_sc_hd__buf_1 to sky130_fd_sc_hd__buf_2).
+Verify that the increased input capacitance of the new gate won't break the timing of the previous stage.
+You need to identify cell, upsize it and iterate till in the report you see slack as positive.
+
+If the trade-off is acceptable, propose the swap.
+
+Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then
+
+Execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1.
+
+6. Verification and HUD Reporting
+Re-run the STA tool inside the Docker container.
+Trigger STA: Run bash sources/run_sta_bridge.sh.
+Read the Results: Use command- docker exec openlane cat /openlane/PHINITY/timing_report.rpt. Parse the output directly from the terminal to find the Slack values
+
+===========FINAL EXECUTION FLOW===================
+You must follow this exact sequence to achieve timing closure. Each iteration aims to recover a portion of the negative slack.
+
+PHASE 1: THE INITIAL AUDIT
+Trigger STA: Run bash sources/run_sta_bridge.sh
+
+Read the Results: Execute docker exec openlane cat /openlane/PHINITY/timing_report.rpt
+
+Parse WNS: Look for the Slack value. If negative, identify the instance for the ECO.
+
+PHASE 2: BOTTLENECK ANALYSIS
+Trace the Path: Start from the Launch Flop Q pin and follow the combinational gates to the Capture Flop D pin.
+
+Identify the "Slowest" Gate: Look for gates with a delay WITH high delays specifically those with drive strength _0.
+
+Example: _5748_sky130_fd_sc_hd__o311ai_0 showing 0.53ns delay. HERE _5748_ is instance and sky130_fd_sc_hd__o311ai_0 is CELL NAME.
+
+PHASE 3: SURGICAL SWAP (ECO)
+Apply the Fix: Use the Python tool to upsize the identified gate in the Git root. python sources/eco_fix.py --instance <INSTANCE_ID> --new_cell <UPSIZED_CELL_NAME> --file sources/netlist.v
+
+Example: Swapping _0 to _1 or _2 as per the hierarchy: _4 > _2 > _1 > _0.
+
+PHASE 4: RE-VERIFICATION (THE LOOP)
+Sync Check: Confirm sources/netlist.v has been saved. Your changes are automatically seen by the openlane container.
+Loop: Re-run PHASE 1 immediately to verify the new slack.
+
+
+Analyze Delta: Compare the new WNS to the old WNS. Success Check: If WNS is now -0.23ns (improved from -0.56ns), identify the next bottleneck and repeat from Phase 2.
+
+
+
+## Files Provided
+
+The files structure are as follows:
+Netlist : sources/netlist.v (here you will do swapping)
+SDC : sources/constraints.sdc (Constraint file- NO MODIFICATION,ONLY READ)
+LIB : sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
+MODEL CELLS: sources/cells (ONLY READING)
+STA TCL FILE : sources/run_sta.tcl (STA TCL FILE THAT YOU WILL SOURCE USING THE COMMAND source run_sta.tcl INSIDE DOCKER CONTAINER openlane/PHINITY) (ONLY READ)
+PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CELL SWAPPING IN THE NETLIST)
+RTL FILE : sources/riscv_core.v (TO UNDERSTAND THE RTL IF YOU WANT)
