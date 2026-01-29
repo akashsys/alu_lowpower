@@ -1,5 +1,5 @@
 1. TASK
-Your goal is to achieve timing closure (WNS >= 0) for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
+Your goal is to achieve timing closure (WNS >= 0.10) for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
 
 2. Environment Setup
 Project Root: /openlane/PHINITY
