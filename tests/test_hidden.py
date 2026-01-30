@@ -10,11 +10,19 @@ import cocotb
 CONTAINER_ID = "openlane"
 
 def get_dynamic_container_path():
-    """Reads the unique task directory from the state file created by run_sta_cmd.sh"""
-    state_file = Path("sources/.task_dir")
+
+    test_dir = Path(__file__).resolve().parent
+    state_file = test_dir.parent / "sources" / ".task_dir"
+    
     if state_file.exists():
-        return state_file.read_text().strip()
-    return "/openlane/STA/TRIAL" # Fallback
+        path = state_file.read_text().strip()
+        if path:
+            return path
+          
+    # If we reach here, the agent's workspace hasn't been initialized correctly
+    raise RuntimeError(
+        f"CRITICAL ERROR: Dynamic task directory not found at {state_file}. "
+    )
 
 # ==============================================================================
 # 1. THE PYTEST RUNNER
@@ -105,7 +113,9 @@ async def test_wns_slack(dut):
 async def test_area_constraint(dut):
     """Cocotb Test: Chip Area check via Dynamic Docker Path"""
     AREA_CEILING = 60878.387
-    os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+
     current_task_path = get_dynamic_container_path()
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
