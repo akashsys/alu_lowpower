@@ -1,19 +1,21 @@
 1. TASK
-Your goal is to achieve timing closure (WNS >= 0.15) for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
+Your goal is to achieve timing closure (WNS >= 0.15) maintaining Chip area of the module less than or equal to 60,878.387 μm^2 for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
 
-2. Environment Setup
-Project Root: /openlane/PHINITY
-Docker Container: openlane 
 
 3. Step-by-Step Execution Protocol
 
 Before performing any analysis or netlist changes, you MUST execute the command to load the OpenSTA:
-
 Command: bash sources/run_sta_cmd.sh
-Important: This script handles the connection to the tools. After running it, the timing_report.rpt is generated INSIDE the Docker container.
-To Read the Report: You MUST use this command to view the timing data: docker exec openlane cat /openlane/PHINITY/timing_report.rpt
+Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
 
-Read timing_report.rpt and identify the Worst Negative Slack (WNS). THE TIMING REPORT WILL LOOK SOMETHING LIKE THIS (EXAMPLE)- 
+
+## The script will print two critical sections to your terminal. You must parse both:
+
+AREA REPORT: Look for the line: Chip area of module at the bottom.
+EXAMPLE: Chip area for module '\riscv_core':61,111,111.
+
+TIMING REPORT: Look for the Slack value at the bottom of the timing table.
+THE TIMING REPORT WILL LOOK SOMETHING LIKE THIS (EXAMPLE)- 
 
 ===========================================================================================================================
 Startpoint: _6796_ (rising edge-triggered flip-flop clocked by clk)
@@ -86,37 +88,33 @@ The Problem: 6.10ns is too slow. The data is "slow" because it had to pass throu
 SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
 
 
-5. Your TASK as an Agent: Find the gates in the "Target Zone" with a delay higher .Check their drive strength (the number at the end of the cell name, like _0 or _1).If it is _0, it is a "weak driver." Upsize it to _1 or _2 using the  reducing those 0.53ns and 0.51ns delays down to 0.20ns, you will turn that negative slack into a Positive Slack (MET).
+5. Your TASK as an Agent:
+
+Now that you have read Timing report and calculated area, your task is to find the gates in the "Target Zone" with a higher delay .Check their drive strength (the number at the end of the cell name, like _0 or _1).If it is _0, it is a " weak cell" you can try to upsize it to _1 or _2 or _4 to reduce the delay contributed by that cell in the path but also there is trade-off that whenever you upsize any cell to make it faster, you also increase the Area contributed by it towards area of module, so while you select any cell to upsize make sure you also check its Area in sky130_fd_sc_hd__tt_025C_1v80.lib
 
 ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
-WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST)
+WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST,BUT TAKES MORE AREA) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST, BUT TAKE LEAST AREA)
 
 If the slack is negative, analyze the cells in the critical path.
 
-Look for cells where Delay is high relative to others. Select a candidate gate for upsizing (e.g., changing sky130_fd_sc_hd__buf_1 to sky130_fd_sc_hd__buf_2).
-Verify that the increased input capacitance of the new gate won't break the timing of the previous stage.
-You need to identify cell, upsize it and iterate till in the report you see slack as positive.
+Look for cells where Delay is high relative to others. Select candidate gates for upsizing (e.g., changing sky130_fd_sc_hd__buf_1 to sky130_fd_sc_hd__buf_2) , if you want you can select one gate or multiple gates but also keep focus on its area from sky130_fd_sc_hd__tt_025C_1v80.lib. 
 
-If the trade-off is acceptable, propose the swap.
+Now that you have identified the cells, upsize it, check the timing report(also get an idea of area of that cell from .lib), do re-synthesize in yosys, check the chip area of module and iterate till you achieve the target(WNS >= 0.15 and chip area of the module less than or equal to 60,878.387 μm^2)
 
-Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then
-
-Execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1.
+Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1. Again you can replace one cell or multiple cells at once.
 
 6. Verification and HUD Reporting
-Re-run the STA tool inside the Docker container.
-Trigger STA: Run bash sources/run_sta_cmd.sh.
-Read the Results: Use command- docker exec openlane cat /openlane/PHINITY/timing_report.rpt. Parse the output directly from the terminal to find the Slack values
+
+Trigger STA and yosys: Run bash sources/run_sta_cmd.sh.
+
 
 ===========FINAL EXECUTION FLOW===================
 You must follow this exact sequence to achieve timing closure. Each iteration aims to recover a portion of the negative slack.
 
 PHASE 1: THE INITIAL AUDIT
-Trigger STA: Run bash sources/run_sta_cmd.sh
-
-Read the Results: Execute docker exec openlane cat /openlane/PHINITY/timing_report.rpt
-
-Parse WNS: Look for the Slack value. If negative, identify the instance for the ECO.
+Trigger STA and yosys: Run bash sources/run_sta_cmd.sh and read both timing and area resulst.
+ 
+Parse WNS and Chip Area of Module: Look for the Slack value. If negative, identify the instance for the ECO.
 
 PHASE 2: BOTTLENECK ANALYSIS
 Trace the Path: Start from the Launch Flop Q pin and follow the combinational gates to the Capture Flop D pin.
@@ -126,18 +124,21 @@ Identify the "Slowest" Gate: Look for gates with a delay WITH high delays specif
 Example: _5748_sky130_fd_sc_hd__o311ai_0 showing 0.53ns delay. HERE _5748_ is instance and sky130_fd_sc_hd__o311ai_0 is CELL NAME.
 
 PHASE 3: SURGICAL SWAP (ECO)
-Apply the Fix: Use the Python tool to upsize the identified gate in the Git root. python sources/eco_fix.py --instance <INSTANCE_ID> --new_cell <UPSIZED_CELL_NAME> --file sources/netlist.v
+Apply the Fix: Use the Python tool to upsize the identified gate, while choosing cell to upsize give special focus on area of module from .lib.
 
 Example: Swapping _0 to _1 or _2 as per the hierarchy: _4 > _2 > _1 > _0.
 
 PHASE 4: RE-VERIFICATION (THE LOOP)
 Sync Check: Confirm sources/netlist.v has been saved. Your changes are automatically seen by the openlane container.
-Loop: Re-run PHASE 1 immediately to verify the new slack.
+Loop: Re-run PHASE 1 immediately to verify the new slack and new area of module.
 
 
-Analyze Delta: Compare the new WNS to the old WNS. Success Check: If WNS is now -0.23ns (improved from -0.56ns), identify the next bottleneck and repeat from Phase 2.
+Analyze Delta: Compare the new WNS to the old WNS and new Area of Moudle to the old Area of Module.
+Success Check: If WNS is now -0.23ns (improved from -0.56ns) and area is also improved, identify the next bottleneck and repeat from Phase 2.
 
 
+The .lib file is large. To find the area of a specific cell quickly, use grep or search for the cell (CELL_NAME) block and look for the area : XXX; attribute.
+Example: grep -A 10 "cell (sky130_fd_sc_hd__buf_4)" sources/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 ## Files Provided
 
@@ -146,6 +147,6 @@ Netlist : sources/netlist.v (here you will do swapping)
 SDC : sources/constraints.sdc (Constraint file- NO MODIFICATION,ONLY READ)
 LIB : sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
 MODEL CELLS: sources/cells (ONLY READING)
-STA TCL FILE : sources/run_sta.tcl (STA TCL FILE THAT YOU WILL SOURCE USING THE COMMAND source run_sta.tcl INSIDE DOCKER CONTAINER openlane/PHINITY) (ONLY READ)
+STA TCL FILE : sources/run_sta.tcl (STA TCL FILE THAT YOU WILL SOURCE USING THE COMMAND source run_sta.tcl) (ONLY READ)
 PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CELL SWAPPING IN THE NETLIST)
 RTL FILE : sources/riscv_core.v (TO UNDERSTAND THE RTL IF YOU WANT)
