@@ -113,31 +113,34 @@ async def test_wns_slack(dut):
 
 @cocotb.test()
 async def test_area_constraint(dut):
-    """Cocotb Test: Chip Area check via Dynamic Docker Path"""
+    """Cocotb Test: Chip Area check via Direct Yosys Call"""
     AREA_CEILING = 60878.387
-    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
-
     current_task_path = get_dynamic_container_path()
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
-    # Run the command script which handles Yosys reporting
-    cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", f"cd {current_task_path} && bash run_sta_cmd.sh"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+   yosys_cmd = f"read_liberty -lib {LIB_FILE}; read_verilog netlist.v; stat -liberty {LIB_FILE}"
+    cmd = [
+        "docker", "exec", CONTAINER_ID, "bash", "-c", 
+        f"cd {current_task_path} && yosys -p '{yosys_cmd}'"
+    ]
+    # We use capture_output=True to get the area string back to Python
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
     
-    # Look for area in the combined output
+    # --- Parse stdout for Area ---
     area_match = re.search(r"Chip area for module.*?:\s*([\d\.]+)", result.stdout)
 
     if area_match:
         current_area = float(area_match.group(1))
-        msg = f"Area: {current_area} um^2 (Ceiling: {AREA_CEILING})"
+        msg = f"Current Area: {current_area} um^2 | Ceiling: {AREA_CEILING}"
         
         if current_area <= AREA_CEILING:
             dut._log.info(f"AREA PASSED: {msg}")
         else:
-            dut._log.error(f"AREA VIOLATED: {msg}")
+            dut._log.error(f"AREA FAILED: {msg}")
 
-        assert current_area <= AREA_CEILING, msg
+        assert current_area <= AREA_CEILING, f"Area Sign-off Failed: {msg}"
     else:
-        raise RuntimeError("Could not find Chip area in tool output.")
+        dut._log.error(f"Yosys Output: {result.stdout}")
+        raise RuntimeError("Area data missing from Yosys output.")
