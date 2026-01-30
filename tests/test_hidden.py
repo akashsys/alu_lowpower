@@ -21,7 +21,8 @@ def get_dynamic_container_path():
 # ==============================================================================
 def test_vlsi_signoff_runner():
     """Orchestrates sync and Cocotb simulation."""
-    os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     
     sim = os.getenv("SIM", "icarus")
     proj_path = Path(__file__).resolve().parent.parent 
@@ -66,7 +67,8 @@ def test_vlsi_signoff_runner():
 @cocotb.test()
 async def test_wns_slack(dut):
     """Cocotb Test: Worst Negative Slack check via Dynamic Docker Path"""
-    os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
     WNS_TARGET = 0.15
 
