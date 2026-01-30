@@ -10,19 +10,21 @@ import cocotb
 CONTAINER_ID = "openlane"
 
 def get_dynamic_container_path():
-
+    """
+    Locates the .task_dir file created by the agent.
+    If not found, it uses the standard project root in the container.
+    """
     test_dir = Path(__file__).resolve().parent
     state_file = test_dir.parent / "sources" / ".task_dir"
     
+    # 1. PRIORITY: Use the agent's random directory if it exists
     if state_file.exists():
         path = state_file.read_text().strip()
         if path:
             return path
-          
-    # If we reach here, the agent's workspace hasn't been initialized correctly
-    raise RuntimeError(
-        f"CRITICAL ERROR: Dynamic task directory not found at {state_file}. "
-    )
+            
+    # 2. LOGIC FALLBACK: Use the default project mount point 
+    return "/openlane/PHINITY"
 
 # ==============================================================================
 # 1. THE PYTEST RUNNER
