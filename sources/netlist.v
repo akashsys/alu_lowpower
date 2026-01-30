@@ -21928,7 +21928,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B1(_1887_),
     .Y(_1913_)
   );
-  sky130_fd_sc_hd__o21ai_0 _5491_ (
+  sky130_fd_sc_hd__o21ai_1 _5491_ (
     .A1(_0185_),
     .A2(_1885_),
     .B1(_1895_),
@@ -22410,7 +22410,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B(_1990_),
     .X(_1991_)
   );
-  sky130_fd_sc_hd__a21boi_0 _5574_ (
+  sky130_fd_sc_hd__a21boi_1 _5574_ (
     .A1(_0151_),
     .A2(_1974_),
     .B1_N(_1968_),
@@ -22559,7 +22559,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B2(_2015_),
     .Y(_2016_)
   );
-  sky130_fd_sc_hd__o21ai_0 _5600_ (
+  sky130_fd_sc_hd__o21ai_2 _5600_ (
     .A1(_0154_),
     .A2(_1992_),
     .B1(_1998_),
@@ -23191,7 +23191,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B1(_2119_),
     .Y(_2120_)
   );
-  sky130_fd_sc_hd__a311oi_2 _5710_ (
+  sky130_fd_sc_hd__a311oi_4 _5710_ (
     .A1(_0157_),
     .A2(_2071_),
     .A3(_2081_),
@@ -23415,7 +23415,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B(_2155_),
     .Y(_2156_)
   );
-  sky130_fd_sc_hd__o311ai_2 _5748_ (
+  sky130_fd_sc_hd__o311ai_4 _5748_ (
     .A1(_0161_),
     .A2(_2100_),
     .A3(_2121_),
@@ -23897,7 +23897,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B(_2235_),
     .Y(_2236_)
   );
-  sky130_fd_sc_hd__o311ai_2 _5832_ (
+  sky130_fd_sc_hd__o311ai_4 _5832_ (
     .A1(_0119_),
     .A2(_2185_),
     .A3(_2198_),
@@ -24145,7 +24145,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .C(_2276_),
     .Y(_2277_)
   );
-  sky130_fd_sc_hd__a311oi_2 _5875_ (
+  sky130_fd_sc_hd__a311oi_4 _5875_ (
     .A1(_0107_),
     .A2(_2223_),
     .A3(_2237_),
@@ -24610,7 +24610,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .C(_2352_),
     .Y(_2353_)
   );
-  sky130_fd_sc_hd__a311oi_2 _5955_ (
+  sky130_fd_sc_hd__a311oi_4 _5955_ (
     .A1(_0132_),
     .A2(_2300_),
     .A3(_2315_),
@@ -25156,7 +25156,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .B1_N(_0184_),
     .X(_2442_)
   );
-  sky130_fd_sc_hd__nand3b_1 _6049_ (
+  sky130_fd_sc_hd__nand3b_2 _6049_ (
     .A_N(_0184_),
     .B(_2428_),
     .C(_2434_),
@@ -25210,7 +25210,7 @@ module riscv_core(clk, rst_n, imem_addr, imem_rdata, dmem_addr, dmem_wdata, dmem
     .C1(_2450_),
     .Y(_2451_)
   );
-  sky130_fd_sc_hd__o21ai_0 _6058_ (
+  sky130_fd_sc_hd__o21ai_2 _6058_ (
     .A1(_0095_),
     .A2(_2451_),
     .B1(_2441_),
