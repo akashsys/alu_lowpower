@@ -116,7 +116,9 @@ async def test_wns_slack(dut):
 async def test_area_constraint(dut):
     """Cocotb Test: Chip Area check via Direct Library-Aware Yosys Call"""
     AREA_CEILING = 60878.387200
-    os.environ["DOCKER_HOST"] = DOCKER_API
+    #os.environ["DOCKER_HOST"] = DOCKER_API
+    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+
     current_task_path = get_dynamic_container_path()
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
