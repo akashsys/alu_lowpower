@@ -120,7 +120,7 @@ async def test_area_constraint(dut):
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
-   yosys_cmd = f"read_liberty -lib {LIB_FILE}; read_verilog netlist.v; stat -liberty {LIB_FILE}"
+    yosys_cmd = f"read_liberty -lib {LIB_FILE}; read_verilog netlist.v; stat -liberty {LIB_FILE}"
     cmd = [
         "docker", "exec", CONTAINER_ID, "bash", "-c", 
         f"cd {current_task_path} && yosys -p '{yosys_cmd}'"
