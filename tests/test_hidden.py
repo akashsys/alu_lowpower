@@ -123,7 +123,7 @@ async def test_area_constraint(dut):
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
     # Run the command script which handles Yosys reporting
-    cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", f"cd {current_task_path} && bash sources/run_sta_cmd.sh"]
+    cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", f"cd {current_task_path} && bash run_sta_cmd.sh"]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     
     # Look for area in the combined output
