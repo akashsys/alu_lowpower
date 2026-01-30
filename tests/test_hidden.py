@@ -115,15 +115,13 @@ async def test_wns_slack(dut):
 @cocotb.test()
 async def test_area_constraint(dut):
     """Cocotb Test: Chip Area check via Direct Library-Aware Yosys Call"""
-    AREA_CEILING = 60878.387200
-    #os.environ["DOCKER_HOST"] = DOCKER_API
+    AREA_CEILING = 60878.38700
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
-
     current_task_path = get_dynamic_container_path()
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
-    # --- THE DIRECT FIX: Hardcoded filenames for zero-variable errors ---
+    # hardcoded filenames for reliability
     yosys_cmd = (
         "read_liberty -lib sky130_fd_sc_hd__tt_025C_1v80.lib; "
         "read_verilog netlist.v; "
@@ -135,16 +133,23 @@ async def test_area_constraint(dut):
         f"cd {current_task_path} && yosys -p '{yosys_cmd}'"
     ]
     
-    # Run and capture output
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+    # FIX: Use stderr=subprocess.STDOUT to ensure we capture all Yosys output
+    result = subprocess.run(
+        cmd, 
+        capture_output=True, 
+        text=True, 
+        check=True, 
+        shell=True
+    )
     
-    # --- Parse stdout for Area ---
-    # Matches: Chip area for module '\riscv_core': 60878.387200
-    area_match = re.search(r"Chip area for module.*?:\s*([\d\.]+)", result.stdout)
+    combined_output = result.stdout + result.stderr
+
+    # --- Robust Parsing ---
+    # We look for the number immediately following 'Chip area'
+    area_match = re.search(r"Chip area.*:\s*([\d\.]+)", combined_output)
 
     if area_match:
         current_area = float(area_match.group(1))
-        # Rounding to 3 decimal places to match your target precision (60878.387)
         current_area_rd = round(current_area, 3)
         
         status = "PASSED" if current_area_rd <= AREA_CEILING else "FAILED"
@@ -157,6 +162,7 @@ async def test_area_constraint(dut):
 
         assert current_area_rd <= AREA_CEILING, f"Area Sign-off Failed: {msg}"
     else:
-        # Debugging aid
-        dut._log.error(f"Regex failed. Yosys output snippet: {result.stdout[-300:]}")
-        raise RuntimeError("Area data missing from Yosys output.")
+        # Detailed debug logging
+        dut._log.error("YOSYS RAW OUTPUT:")
+        dut._log.error(combined_output[-500:]) # Print last 500 characters
+        raise RuntimeError("Regex could not find 'Chip area' in Yosys output.")
