@@ -47,6 +47,8 @@ docker cp ./sources/. openlane:$UNIQUE_DIR/ || exit 1
 docker exec openlane bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl"|| exit 1
 docker exec openlane cat $UNIQUE_DIR/timing_report.rpt || exit 1
 
+docker exec openlane bash -c "cd $UNIQUE_DIR && yosys area.ys" || exit 1
+docker exec openlane cat $UNIQUE_DIR/area.rpt || exit 1
 
 
 

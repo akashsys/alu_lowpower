@@ -1,0 +1,9 @@
+# 1. Read standard cell library
+read_liberty -lib sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# 2. Read synthesized netlist
+read_verilog netlist.v
+
+# 3. Generate Area Report
+tee -o area.rpt stat -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
+
