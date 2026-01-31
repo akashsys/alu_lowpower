@@ -111,45 +111,45 @@ async def test_wns_slack(dut):
     else:
         raise RuntimeError("Slack not found in report.")
 
-
 @cocotb.test()
 async def test_area_constraint(dut):
-    """Cocotb Test: Chip Area check via Direct Library-Aware Yosys Call"""
-    AREA_CEILING = 60878.38700
+    """Cocotb Test: Chip Area check via Report-File extraction"""
+    AREA_CEILING = 60878.387
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
-    # hardcoded filenames for reliability
+    # 1. Define the Yosys command to run analysis
     yosys_cmd = (
         "read_liberty -lib sky130_fd_sc_hd__tt_025C_1v80.lib; "
         "read_verilog netlist.v; "
         "stat -liberty sky130_fd_sc_hd__tt_025C_1v80.lib"
     )
     
-    cmd = [
+    # 2. Execute Yosys and REDIRECT output to area.rpt inside the container
+    # We use ' > area.rpt 2>&1' to capture both success and error messages into the file
+    gen_rpt_cmd = [
         "docker", "exec", CONTAINER_ID, "bash", "-c", 
-        f"cd {current_task_path} && yosys -p '{yosys_cmd}'"
+        f"cd {current_task_path} && yosys -p '{yosys_cmd}' > area.rpt 2>&1"
     ]
     
-    # FIX: Use stderr=subprocess.STDOUT to ensure we capture all Yosys output
-    result = subprocess.run(
-        cmd, 
-        capture_output=True, 
-        text=True, 
-        check=True, 
-        shell=True
-    )
-    
-    combined_output = result.stdout + result.stderr
+    dut._log.info("Generating area report file...")
+    subprocess.run(gen_rpt_cmd, check=True, shell=True)
 
-    # --- Robust Parsing ---
-    # We look for the number immediately following 'Chip area'
-    area_match = re.search(r"Chip area.*:\s*([\d\.]+)", combined_output)
+    # 3. Read the generated report file back from the container
+    read_rpt_cmd = ["docker", "exec", CONTAINER_ID, "cat", f"{current_task_path}/area.rpt"]
+    result = subprocess.run(read_rpt_cmd, capture_output=True, text=True, check=True, shell=True)
+    
+    report_content = result.stdout
+
+    # 4. Robust Parsing of the file content
+    # Look for the number following 'Chip area'
+    area_match = re.search(r"Chip area.*:\s*([\d\.]+)", report_content)
 
     if area_match:
         current_area = float(area_match.group(1))
+        # Round to 3 decimal places for target comparison
         current_area_rd = round(current_area, 3)
         
         status = "PASSED" if current_area_rd <= AREA_CEILING else "FAILED"
@@ -162,7 +162,7 @@ async def test_area_constraint(dut):
 
         assert current_area_rd <= AREA_CEILING, f"Area Sign-off Failed: {msg}"
     else:
-        # Detailed debug logging
-        dut._log.error("YOSYS RAW OUTPUT:")
-        dut._log.error(combined_output[-500:]) # Print last 500 characters
-        raise RuntimeError("Regex could not find 'Chip area' in Yosys output.")
+        # If regex fails, show exactly what Yosys wrote to the file for debugging
+        dut._log.error("FAILED TO PARSE REPORT. File content (last 300 chars):")
+        dut._log.error(f"\n{report_content[-300:]}")
+        raise RuntimeError(f"Area data missing from {current_task_path}/area.rpt")
