@@ -1,5 +1,6 @@
 # 1. Point to the Windows Host bridge
-export DOCKER_HOST=tcp://127.0.0.1:2375
+#export DOCKER_HOST=tcp://127.0.0.1:2375
+export DOCKER_HOST=tcp://host.docker.internal:2375
 
 # 1. Connection Retry (3 attempts)
 CONNECTED=false
