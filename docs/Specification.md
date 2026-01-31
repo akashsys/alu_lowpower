@@ -49,6 +49,7 @@ LIB : sky130_fd_sc_hd__tt_025C_1v80.lib
 MODEL CELLS: sources/cells
 STA TCL FILE : sources/run_sta.tcl
 RTL FILE : sources/riscv_core.V
+AREA TCL FILE: sources/area.ys
 
 
 
