@@ -113,56 +113,41 @@ async def test_wns_slack(dut):
 
 @cocotb.test()
 async def test_area_constraint(dut):
-    """Cocotb Test: Chip Area check via Report-File extraction"""
-    AREA_CEILING = 60878.387
+    """Cocotb Test: Chip Area check via script.ys and report extraction"""
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
+    AREA_CEILING = 60878.387
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
-    # 1. Define the Yosys command to run analysis
-    yosys_cmd = (
-        "read_liberty -lib sky130_fd_sc_hd__tt_025C_1v80.lib; "
-        "read_verilog netlist.v; "
-        "stat -liberty sky130_fd_sc_hd__tt_025C_1v80.lib"
-    )
-    
-    # 2. Execute Yosys and REDIRECT output to area.rpt inside the container
-    # We use ' > area.rpt 2>&1' to capture both success and error messages into the file
-    gen_rpt_cmd = [
-        "docker", "exec", CONTAINER_ID, "bash", "-c", 
-        f"cd {current_task_path} && yosys -p '{yosys_cmd}' > area.rpt 2>&1"
-    ]
-    
-    dut._log.info("Generating area report file...")
-    subprocess.run(gen_rpt_cmd, check=True, shell=True)
+    # --- Step 1: Execute Yosys using the .ys script ---
+    # This generates the area.rpt inside the container
+    cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", f"cd {current_task_path} && yosys area.ys"]
+    subprocess.run(cmd, check=True)
 
-    # 3. Read the generated report file back from the container
-    read_rpt_cmd = ["docker", "exec", CONTAINER_ID, "cat", f"{current_task_path}/area.rpt"]
-    result = subprocess.run(read_rpt_cmd, capture_output=True, text=True, check=True, shell=True)
-    
-    report_content = result.stdout
+    # --- Step 2: Copy report back to host ---
+    # Parity with timing_report.rpt logic
+    subprocess.run(f"docker cp {CONTAINER_ID}:{current_task_path}/area.rpt .", shell=True, check=True)
 
-    # 4. Robust Parsing of the file content
-    # Look for the number following 'Chip area'
+    # --- Step 3: Parse and Validate ---
+    with open("area.rpt", "r") as f:
+        report_content = f.read()
+
+    # Capture the area number
     area_match = re.search(r"Chip area.*:\s*([\d\.]+)", report_content)
 
     if area_match:
         current_area = float(area_match.group(1))
-        # Round to 3 decimal places for target comparison
         current_area_rd = round(current_area, 3)
+        status_msg = f"Area is {current_area_rd} um^2 (Target: <= {AREA_CEILING})"
         
-        status = "PASSED" if current_area_rd <= AREA_CEILING else "FAILED"
-        msg = f"Area: {current_area_rd} um^2 | Target: <= {AREA_CEILING}"
-        
-        if status == "PASSED":
-            dut._log.info(f"AREA SIGN-OFF {status}: {msg}")
+        if current_area_rd <= AREA_CEILING:
+            dut._log.info(f"AREA MET: {status_msg}")
         else:
-            dut._log.error(f"AREA SIGN-OFF {status}: {msg}")
+            dut._log.error(f"AREA VIOLATED: {status_msg}")
 
-        assert current_area_rd <= AREA_CEILING, f"Area Sign-off Failed: {msg}"
+        assert current_area_rd <= AREA_CEILING, f"Area check failed: {status_msg}"
     else:
-        # If regex fails, show exactly what Yosys wrote to the file for debugging
-        dut._log.error("FAILED TO PARSE REPORT. File content (last 300 chars):")
-        dut._log.error(f"\n{report_content[-300:]}")
-        raise RuntimeError(f"Area data missing from {current_task_path}/area.rpt")
+        # Debugging aid: show what the file actually contains if parsing fails
+        dut._log.error(f"Regex failed. Report snippet:\n{report_content[-200:]}")
+        raise RuntimeError("Area data not found in area.rpt.")
