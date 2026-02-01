@@ -5,6 +5,8 @@ import pytest
 from pathlib import Path
 from cocotb_tools.runner import get_runner
 import cocotb
+from cocotb.clock import Clock
+from cocotb.triggers import RisingEdge, Timer
 
 # --- CONFIGURATION ---
 CONTAINER_ID = "openlane"
@@ -52,7 +54,7 @@ def test_vlsi_signoff_runner():
 
     runner.build(
         sources=sources,
-        hdl_toplevel="riscv_core",
+        hdl_toplevel="elastic_credit_arbiter",
         always=True,
         build_args=[
             f"-y{sources_dir}/cells/base",
@@ -66,7 +68,7 @@ def test_vlsi_signoff_runner():
     )    
 
     runner.test(
-        hdl_toplevel="riscv_core",
+        hdl_toplevel="elastic_credit_arbiter",
         test_module=Path(__file__).stem
     )
 
@@ -80,7 +82,7 @@ async def test_wns_slack(dut):
     #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
-    WNS_TARGET = 0.15
+    WNS_TARGET = 0
 
     dut._log.info(f"Analyzing Timing in: {current_task_path}")
 
@@ -116,7 +118,7 @@ async def test_area_constraint(dut):
     """Cocotb Test: Chip Area check via script.ys and report extraction"""
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
-    AREA_CEILING = 60878.387
+    AREA_CEILING = 10556.0
 
     dut._log.info(f"Analyzing Area in: {current_task_path}")
 
@@ -151,3 +153,61 @@ async def test_area_constraint(dut):
         # Debugging aid: show what the file actually contains if parsing fails
         dut._log.error(f"Regex failed. Report snippet:\n{report_content[-200:]}")
         raise RuntimeError("Area data not found in area.rpt.")
+
+
+
+# ==============================================================================
+# 3. FUNCTIONAL TESTS (Hardware Logic)
+# ==============================================================================
+
+async def reset_dut(dut):
+    dut.rst_n.value = 0
+    await Timer(10, units="ns")
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+
+@cocotb.test()
+async def test_arbiter_full_logic(dut):
+    """Full Logic Check: Priority, Starvation, Credits, and Elasticity."""
+    clock = Clock(dut.clk, 3.2, units="ns") 
+    cocotb.start_soon(clock.start())
+    await reset_dut(dut)
+
+    # --- 1. Fixed Priority Check ---
+    dut.packet_size.value = 0x10
+    dut.request.value = 0b1001 
+    await RisingEdge(dut.clk)
+    await Timer(1, "ns")
+    assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
+
+    # --- 2. Starvation Escalation Check ---
+    dut._log.info("Stalling Port 3 to escalate priority...")
+    for _ in range(35): 
+        await RisingEdge(dut.clk)
+    
+    await RisingEdge(dut.clk)
+    await Timer(1, "ns")
+    assert dut.grant.value == 0b1000, "Port 3 should win via Starvation Escalation (Tier 1)"
+
+    # --- 3. Credit Exhaustion Check ---
+    # Port 0 (1 grant) and Port 3 (1 grant) used 0x10 each. Remaining: 0x70.
+    dut.packet_size.value = 0x71
+    dut.request.value = 0b1000 
+    await RisingEdge(dut.clk)
+    await Timer(1, "ns")
+    assert dut.grant_valid.value == 0, "Error: Grant issued with insufficient credits"
+    dut._log.info("Credit Guard Verified.")
+
+    # --- 4. Elastic Increment Check ---
+    dut.request.value = 0x0
+    dut._log.info("Idling to allow LFSR increments...")
+    for _ in range(100):
+        await RisingEdge(dut.clk)
+
+    # Bucket should now exceed 0x80 due to idle increments
+    dut.packet_size.value = 0x85
+    dut.request.value = 0b0001
+    await RisingEdge(dut.clk)
+    await Timer(1, "ns")
+    assert dut.grant.value == 0b0001, "Elasticity failed: Bucket did not increment while idle"
+    dut._log.info("Full Functional Suite Passed.")
