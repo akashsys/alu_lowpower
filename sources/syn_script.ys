@@ -1,0 +1,35 @@
+# 1. Read the Speculative RTL
+read_verilog elastic_credit_arbiter.v
+
+# 2. Preparation & Optimization
+hierarchy -check -top elastic_credit_arbiter
+proc; 
+opt; 
+fsm; 
+opt; 
+memory; 
+opt
+
+# 3. High-Speed Synthesis Pass
+synth -top elastic_credit_arbiter
+
+# 4. Map to Flip-Flops
+dfflibmap -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# 5. Timing-Driven Logic Mapping
+abc -liberty sky130_fd_sc_hd__tt_025C_1v80.lib -D 2000
+
+# 6. Convert 'assign' statements to physical buffers
+insbuf -buf sky130_fd_sc_hd__buf_2 A X
+
+# 7. Final Netlist Cleanup
+# Remove 'assign' statements and ensure no nets are left floating
+setundef -zero
+splitnets -ports
+opt_clean -purge
+
+# 8. Write the Netlist
+write_verilog -noattr netlist.v
+
+# 9. Print Statistics
+stat -liberty sky130_fd_sc_hd__tt_025C_1v80.lib

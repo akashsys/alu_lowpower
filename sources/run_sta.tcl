@@ -5,7 +5,7 @@ read_liberty sky130_fd_sc_hd__tt_025C_1v80.lib
 read_verilog netlist.v
 
 # 3. Set top module
-link_design riscv_core
+link_design elastic_credit_arbiter
 
 #4. Read SDC
 read_sdc constraints.sdc

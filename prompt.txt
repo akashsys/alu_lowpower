@@ -1,18 +1,31 @@
 1. TASK
-Your goal is to achieve timing closure (WNS >= 0.15) maintaining Chip area of the module less than or equal to 60,878.387 μm^2 for the PHINITY RISC-V core. You must balance the trade-offs of cell upsizing as defined in the specs.md file.
+Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way that it is synthesizable with clean timing and follow the area requirements. The design must manage resource allocation based on available "credits" and prevent source starvation using a dynamic aging mechanism. The final implementation must be optimized for the Sky130 HD technology library.
+
+
+2. Technical Performance Targets
+Clock Period (T_clk): 3.2ns (312.5 MHz).
+Process: Sky130 HD (High Density).
+Timing Constraint: Must achieve positive Slack (WNS > 0) for Reg-to-Reg paths.
+Area Budget: Total chip area must not exceed 10,556 $\mu m^2$.
+Optimization Note: If gate-level sizing/buffering fails to close timing, you are expected to rebuilt the RTL to reduce combinational depth (e.g., separating arithmetic from selection) and re-synthesize.
 
 
 3. Step-by-Step Execution Protocol
 
-Before performing any analysis or netlist changes, you MUST execute the command to load the OpenSTA:
+This environment supports two modes of operation:
+
+RTL Synthesis Mode: Use this when you have modified the RTL logic. 
+Before running the bash script- bash sources/run_sta_cmd.sh
+, execute touch sources/FORCE_RESYNTHESIS in your terminal. This will trigger Yosys to re-map your RTL to a fresh gate-level netlist.
+
+Netlist ECO Mode: Use this if you are only swapping cell sizes or drive strengths in netlist.v. 
 Command: bash sources/run_sta_cmd.sh
 Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
-
 
 ## The script will print two critical sections to your terminal. You must parse both:
 
 AREA REPORT: Look for the line: Chip area of module at the bottom.
-EXAMPLE: Chip area for module '\riscv_core':61,111,111.
+EXAMPLE: Chip area for module '\elastic_credit_arbiter':61,111,111.
 
 TIMING REPORT: Look for the Slack value at the bottom of the timing table.
 THE TIMING REPORT WILL LOOK SOMETHING LIKE THIS (EXAMPLE)- 
@@ -99,54 +112,20 @@ If the slack is negative, analyze the cells in the critical path.
 
 Look for cells where Delay is high relative to others. Select candidate gates for upsizing (e.g., changing sky130_fd_sc_hd__buf_1 to sky130_fd_sc_hd__buf_2) , if you want you can select one gate or multiple gates but also keep focus on its area from sky130_fd_sc_hd__tt_025C_1v80.lib. 
 
-Now that you have identified the cells, upsize it, check the timing report(also get an idea of area of that cell from .lib), do re-synthesize in yosys, check the chip area of module and iterate till you achieve the target(WNS >= 0.15 and chip area of the module less than or equal to 60,878.387 μm^2)
+Now that you have identified the cells, upsize it, check the timing report(also get an idea of area of that cell from .lib), do re-synthesize in yosys, check the chip area of module and iterate till you achieve the target.
 
 Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1. Again you can replace one cell or multiple cells at once.
 
-6. Verification and HUD Reporting
-
-Trigger STA and yosys: Run bash sources/run_sta_cmd.sh.
-
-
-===========FINAL EXECUTION FLOW===================
-You must follow this exact sequence to achieve timing closure. Each iteration aims to recover a portion of the negative slack.
-
-PHASE 1: THE INITIAL AUDIT
-Trigger STA and yosys: Run bash sources/run_sta_cmd.sh and read both timing and area resulst.
- 
-Parse WNS and Chip Area of Module: Look for the Slack value. If negative, identify the instance for the ECO.
-
-PHASE 2: BOTTLENECK ANALYSIS
-Trace the Path: Start from the Launch Flop Q pin and follow the combinational gates to the Capture Flop D pin.
-
-Identify the "Slowest" Gate: Look for gates with a delay WITH high delays specifically those with drive strength _0.
-
-Example: _5748_sky130_fd_sc_hd__o311ai_0 showing 0.53ns delay. HERE _5748_ is instance and sky130_fd_sc_hd__o311ai_0 is CELL NAME.
-
-PHASE 3: SURGICAL SWAP (ECO)
-Apply the Fix: Use the Python tool to upsize the identified gate, while choosing cell to upsize give special focus on area of module from .lib.
-
-Example: Swapping _0 to _1 or _2 as per the hierarchy: _4 > _2 > _1 > _0.
-
-PHASE 4: RE-VERIFICATION (THE LOOP)
-Sync Check: Confirm sources/netlist.v has been saved. Your changes are automatically seen by the openlane container.
-Loop: Re-run PHASE 1 immediately to verify the new slack and new area of module.
-
-
-Analyze Delta: Compare the new WNS to the old WNS and new Area of Moudle to the old Area of Module.
-Success Check: If WNS is now -0.23ns (improved from -0.56ns) and area is also improved, identify the next bottleneck and repeat from Phase 2.
-
-
-The .lib file is large. To find the area of a specific cell quickly, use grep or search for the cell (CELL_NAME) block and look for the area : XXX; attribute.
-Example: grep -A 10 "cell (sky130_fd_sc_hd__buf_4)" sources/sky130_fd_sc_hd__tt_025C_1v80.lib
+If you think you cant fix the timing with upsizing any more then you have to re-write the RTL and use RTL Synthesis mode to again do synthesis.
 
 ## Files Provided
 
 The files structure are as follows:
-Netlist : sources/netlist.v (here you will do swapping)
 SDC : sources/constraints.sdc (Constraint file- NO MODIFICATION,ONLY READ)
 LIB : sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
 MODEL CELLS: sources/cells (ONLY READING)
 STA TCL FILE : sources/run_sta.tcl (STA TCL FILE THAT YOU WILL SOURCE USING THE COMMAND source run_sta.tcl) (ONLY READ)
 PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CELL SWAPPING IN THE NETLIST)
-RTL FILE : sources/riscv_core.v (TO UNDERSTAND THE RTL IF YOU WANT)
+RTL FILE : sources/elastic_credit_arbiter.v (TO PERFORM CHANGES)
+AREA TCL FILE: sources/area.ys
+SYNTHESIS TCL FILE: sources/syn_script.ys
