@@ -17,7 +17,17 @@ if [ "$CONNECTED" = false ]; then
     exit 1
 fi
 
-STATE_FILE="./sources/.task_dir"
+RUN_ID="job_${RANDOM}_$(date +%s)"
+UNIQUE_SOURCES_DIR="./workspaces/$RUN_ID/sources"
+
+echo ">>> Initializing isolated source sandbox: $UNIQUE_SOURCES_DIR"
+mkdir -p "$UNIQUE_SOURCES_DIR"
+
+# Copy original content into the sandbox
+cp -r ./sources/. "$UNIQUE_SOURCES_DIR/"
+
+# Update STATE_FILE to point to the sandbox
+STATE_FILE="$UNIQUE_SOURCES_DIR/.task_dir"
 
 if [ -f "$STATE_FILE" ]; then
     # ITERATION RUN: Read the existing directory name
@@ -35,40 +45,57 @@ else
     docker exec openlane mkdir -p $UNIQUE_DIR || exit 1
 fi
 
-# 3. Synchronize initial scripts and RTL to container
-# This is necessary so Yosys has access to syn_script.ys and the .v file
-docker cp ./sources/. openlane:$UNIQUE_DIR/ || exit 1
+# ==============================================================================
+# 3. SYNCHRONIZE ISOLATED SOURCES TO CONTAINER
+# ==============================================================================
+# We copy from the UNIQUE sandbox, not the global ./sources
+echo ">>> Syncing sandbox sources to container workspace: $UNIQUE_DIR"
+docker cp "$UNIQUE_SOURCES_DIR/." openlane:$UNIQUE_DIR/ || exit 1
 
+# ==============================================================================
 # 4. SYNTHESIS STEP: RTL to Netlist
-# Triggers if the FORCE_RESYNTHESIS flag exists OR if netlist.v is missing (first run)
-if [ -f "./sources/FORCE_RESYNTHESIS" ] || [ ! -f "./sources/netlist.v" ]; then
+# ==============================================================================
+# Check for the FORCE flag or missing netlist specifically in the sandbox
+if [ -f "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS" ] || [ ! -f "$UNIQUE_SOURCES_DIR/netlist.v" ]; then
     echo ">>> STATUS: Starting RTL-to-Netlist Synthesis..."
     
-    # Run Yosys inside the container
+    # Run Yosys inside the unique container directory
     docker exec openlane bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
     
-    # Copy the newly created netlist back to the Host (Windows)
-    # This allows the agent to see and edit the netlist locally.
-    docker cp openlane:$UNIQUE_DIR/netlist.v ./sources/netlist.v
+    # Copy the newly created netlist back to the ISOLATED Host sandbox
+    # This ensures Run A doesn't overwrite Run B's netlist
+    docker cp openlane:$UNIQUE_DIR/netlist.v "$UNIQUE_SOURCES_DIR/netlist.v"
     
-    # Cleanup flag on Host
-    [ -f "./sources/FORCE_RESYNTHESIS" ] && rm "./sources/FORCE_RESYNTHESIS"
-    echo ">>> SUCCESS: Netlist generated and synced to ./sources/netlist.v"
+    # Cleanup flag in the sandbox
+    [ -f "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS" ] && rm "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS"
+    echo ">>> SUCCESS: Netlist generated and synced to $UNIQUE_SOURCES_DIR/netlist.v"
 else
-    echo ">>> STATUS: Netlist exists. Skipping synthesis to preserve ECO/Sizing changes."
+    echo ">>> STATUS: Netlist exists in sandbox. Skipping synthesis to preserve ECO/Sizing changes."
 fi
 
-# 5. FINAL SYNC: Push the netlist (either fresh or agent-edited) back to container
-docker cp ./sources/netlist.v openlane:$UNIQUE_DIR/netlist.v || exit 1
+# ==============================================================================
+# 5. FINAL SYNC: Push the Sandbox Netlist back to Container
+# ==============================================================================
+# This pushes the current netlist (whether freshly synthesized or agent-edited)
+docker cp "$UNIQUE_SOURCES_DIR/netlist.v" openlane:$UNIQUE_DIR/netlist.v || exit 1
 
-# 6. Run Static Timing Analysis (STA)
+# ==============================================================================
+# 6. RUN STATIC TIMING ANALYSIS (STA)
+# ==============================================================================
 echo ">>> STATUS: Running Static Timing Analysis..."
 docker exec openlane bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl" || exit 1
 docker exec openlane cat $UNIQUE_DIR/timing_report.rpt || exit 1
 
-# 7. Run Area Analysis
+# ==============================================================================
+# 7. RUN AREA ANALYSIS
+# ==============================================================================
 echo ">>> STATUS: Calculating Area..."
 docker exec openlane bash -c "cd $UNIQUE_DIR && yosys area.ys" || exit 1
 docker exec openlane cat $UNIQUE_DIR/area.rpt || exit 1
 
-
+# ==============================================================================
+# 8. TRIGGER PYTHON VALIDATION (Isolated)
+# ==============================================================================
+# Export the sandbox path so test_hidden.py knows where the RTL is
+export ISOLATED_SOURCES="$UNIQUE_SOURCES_DIR"
+pytest tests/test_hidden.py
