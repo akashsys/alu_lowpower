@@ -217,20 +217,32 @@ async def test_arbiter_full_logic(dut):
     await Timer(1,unit="ns")
     assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
 
-    # --- 2. Starvation Escalation Check ---
+# --- 2. Starvation Escalation Check ---
     dut._log.info("Stalling Port 3 to escalate priority...")
-    dut.request.value = 0b1001
-    for _ in range(40): 
-        await RisingEdge(dut.clk)
-   
-    dut._log.info("Dropping Port 0 to check if Port 3 Escalated...")
-    dut.request.value = 0b1000
     
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
-    await Timer(1,unit="ns")
-    assert dut.grant.value == 0b1000, "Port 3 should win via Starvation Escalation (Tier 1)"
+    # STEP 1: Silence Port 0 so Port 3 can age without interference
+    # (If Port 0 wins, it might prevent Port 3's counter from logic progression)
+    dut.request.value = 0b1000 
+    dut.packet_size.value = 0x10
+    
+    # STEP 2: Wait for Port 3 to age past threshold (32 cycles)
+    for _ in range(40):  
+        await RisingEdge(dut.clk)
+    
+    # STEP 3: Now bring Port 0 back. 
+    # Even with Port 0 present, Port 3 (Aged) should now be High Priority
+    dut._log.info("Bringing Port 0 back to test if Port 3 maintains its lead...")
+    dut.request.value = 0b1001
+    
+    # STEP 4: Pipeline Flush (Wait 4 cycles to be absolutely certain)
+    for _ in range(4):
+        await RisingEdge(dut.clk)
+    
+    await Timer(1, unit="ns")
+    
+    # If the logic picks 0001, your escalation isn't bypassing fixed priority.
+    # If it picks 1000, success!
+    assert dut.grant.value == 0b1000, f"Starvation failed. Got {dut.grant.value}"
 
     # --- 3. Credit Exhaustion Check ---
     # Port 0 (1 grant) and Port 3 (1 grant) used 0x10 each. Remaining: 0x70.
