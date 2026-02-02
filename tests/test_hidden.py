@@ -212,6 +212,7 @@ async def test_arbiter_full_logic(dut):
     dut.packet_size.value = 0x10
     dut.request.value = 0b1001 
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     await Timer(1,unit="ns")
     assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
 
