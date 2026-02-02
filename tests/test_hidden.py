@@ -11,26 +11,28 @@ from cocotb.triggers import RisingEdge, Timer
 # --- CONFIGURATION ---
 CONTAINER_ID = "openlane"
 
-def get_dynamic_container_path():
-    """
-    Locates the .task_dir file created by the agent.
-    If not found, it uses the standard project root in the container.
-    """
-    test_dir = Path(__file__).resolve().parent
-    state_file = test_dir.parent / "sources" / ".task_dir"
+def get_dynamic_container_path(state_file_override=None):
+    if state_file_override:
+        state_file = state_file_override
+
+    else:
+        # Check if we are in an isolated parallel job
+        base_dir = os.getenv("ISOLATED_SOURCES")
+        if base_dir:
+            state_file = Path(base_dir).resolve() / ".task_dir"
+        else:
+            # Standard fallback
+            test_dir = Path(__file__).resolve().parent
+            state_file = test_dir.parent / "sources" / ".task_dir"
     
-    # 1. PRIORITY: Use the agent's random directory if it exists
     if state_file.exists():
         path = state_file.read_text().strip()
         if path:
             return path
             
-    # 2. LOGIC FALLBACK: Use the default project mount point 
     return "/openlane/PHINITY"
 
-# ==============================================================================
-# 1. THE PYTEST RUNNER
-# ==============================================================================
+
 # ==============================================================================
 # 1. THE PYTEST RUNNER
 # ==============================================================================
@@ -40,11 +42,23 @@ def test_vlsi_signoff_runner():
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     
     sim = os.getenv("SIM", "icarus")
-    proj_path = Path(__file__).resolve().parent.parent 
-    sources_dir = proj_path / "sources"
     
+    # --- DYNAMIC PATH DISCOVERY ---
+    # Look for the sandbox path exported by the bash script
+    base_dir = os.getenv("ISOLATED_SOURCES")
+    if base_dir:
+        sources_dir = Path(base_dir).resolve()
+        # In the sandbox, .task_dir is directly inside sources/
+        state_file = sources_dir / ".task_dir"
+    else:
+        # Fallback for manual local runs
+        proj_path = Path(__file__).resolve().parent.parent 
+        sources_dir = proj_path / "sources"
+        state_file = sources_dir / ".task_dir"
+
     # Resolve dynamic path for this specific agent task
-    current_task_path = get_dynamic_container_path()
+    # (Pass the state_file path to your helper if needed)
+    current_task_path = get_dynamic_container_path(state_file)
 
     # --- Step 1: Sync to Docker ---
     print(f"\nSyncing to Docker container {CONTAINER_ID} at {current_task_path}...")
@@ -53,6 +67,7 @@ def test_vlsi_signoff_runner():
 
     # --- Step 2: Setup Cocotb Runner ---
     netlist_path = sources_dir / "netlist.v"
+    rtl_path = sources_dir / "elastic_credit_arbiter.v"
 
     if not netlist_path.exists():
         print(">>> [INIT] Netlist not found. Generating initial baseline netlist...")
@@ -68,7 +83,8 @@ def test_vlsi_signoff_runner():
     else:
         print(">>> [SKIP] Netlist exists. Using current version for testing.")
 
-    sources = [netlist_path]
+    #sources = [netlist_path]
+    sources = [rtl_path]
     runner = get_runner(sim)
 
     runner.build(
@@ -181,14 +197,14 @@ async def test_area_constraint(dut):
 
 async def reset_dut(dut):
     dut.rst_n.value = 0
-    await Timer(10, units="ns")
+    await Timer(10, unit="ns")
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
 
 @cocotb.test()
 async def test_arbiter_full_logic(dut):
     """Full Logic Check: Priority, Starvation, Credits, and Elasticity."""
-    clock = Clock(dut.clk, 3.2, units="ns") 
+    clock = Clock(dut.clk, 3.2, unit="ns") 
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
@@ -196,7 +212,7 @@ async def test_arbiter_full_logic(dut):
     dut.packet_size.value = 0x10
     dut.request.value = 0b1001 
     await RisingEdge(dut.clk)
-    await Timer(1, "ns")
+    await Timer(1,unit="ns")
     assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
 
     # --- 2. Starvation Escalation Check ---
@@ -205,7 +221,7 @@ async def test_arbiter_full_logic(dut):
         await RisingEdge(dut.clk)
     
     await RisingEdge(dut.clk)
-    await Timer(1, "ns")
+    await Timer(1,unit="ns")
     assert dut.grant.value == 0b1000, "Port 3 should win via Starvation Escalation (Tier 1)"
 
     # --- 3. Credit Exhaustion Check ---
@@ -213,7 +229,7 @@ async def test_arbiter_full_logic(dut):
     dut.packet_size.value = 0x71
     dut.request.value = 0b1000 
     await RisingEdge(dut.clk)
-    await Timer(1, "ns")
+    await Timer(1,unit="ns")
     assert dut.grant_valid.value == 0, "Error: Grant issued with insufficient credits"
     dut._log.info("Credit Guard Verified.")
 
@@ -227,6 +243,6 @@ async def test_arbiter_full_logic(dut):
     dut.packet_size.value = 0x85
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
-    await Timer(1, "ns")
+    await Timer(1,unit="ns")
     assert dut.grant.value == 0b0001, "Elasticity failed: Bucket did not increment while idle"
     dut._log.info("Full Functional Suite Passed.")
