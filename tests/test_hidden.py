@@ -49,7 +49,23 @@ def test_vlsi_signoff_runner():
     subprocess.run(f"docker cp \"{sources_dir}/.\" {CONTAINER_ID}:{current_task_path}/", shell=True, check=True)
 
     # --- Step 2: Setup Cocotb Runner ---
-    sources = [sources_dir / "netlist.v"]
+    netlist_path = sources_dir / "netlist.v"
+
+   if not netlist_path.exists():
+    print(">>> [INIT] Netlist not found. Generating initial baseline netlist...")
+    # Execute the synthesis portion ONLY
+    subprocess.run([
+        "docker", "exec", CONTAINER_ID, "bash", "-c", 
+        f"cd {current_task_path} && yosys -s syn_script.ys"
+    ], check=True)
+    # Pull it to host so the runner can build the simulation
+    subprocess.run([
+        "docker", "cp", f"{CONTAINER_ID}:{current_task_path}/netlist.v", str(netlist_path)
+    ], check=True)
+   else:
+    print(">>> [SKIP] Netlist exists. Using current version for testing.")
+
+    sources = [netlist_path]
     runner = get_runner(sim)
 
     runner.build(
