@@ -1,6 +1,8 @@
 1. TASK
 Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way that it is synthesizable with clean timing and follow the area requirements. The design must manage resource allocation based on available "credits" and prevent source starvation using a dynamic aging mechanism. The final implementation must be optimized for the Sky130 HD technology library.
 
+The file sources/elastic_credit_arbiter.v already exists in the workspace. Do not use the create command. Instead, use str_replace to implement the logic into the existing module, or use bash to delete the file first if you prefer to rewrite it entirely.
+
 
 2. Technical Performance Targets
 Clock Period (T_clk): 3.2ns (312.5 MHz).
