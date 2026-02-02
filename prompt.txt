@@ -3,7 +3,6 @@ Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter
 
 The file sources/elastic_credit_arbiter.v already exists in the workspace. Do not use the create command. Instead, use str_replace to implement the logic into the existing module, or use bash to delete the file first if you prefer to rewrite it entirely.
 
-
 2. Technical Performance Targets
 Clock Period (T_clk): 3.2ns (312.5 MHz).
 Process: Sky130 HD (High Density).
