@@ -31,9 +31,12 @@ def get_dynamic_container_path():
 # ==============================================================================
 # 1. THE PYTEST RUNNER
 # ==============================================================================
+# ==============================================================================
+# 1. THE PYTEST RUNNER
+# ==============================================================================
 def test_vlsi_signoff_runner():
     """Orchestrates sync and Cocotb simulation."""
-    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
+    # os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     
     sim = os.getenv("SIM", "icarus")
@@ -51,19 +54,19 @@ def test_vlsi_signoff_runner():
     # --- Step 2: Setup Cocotb Runner ---
     netlist_path = sources_dir / "netlist.v"
 
-   if not netlist_path.exists():
-    print(">>> [INIT] Netlist not found. Generating initial baseline netlist...")
-    # Execute the synthesis portion ONLY
-    subprocess.run([
-        "docker", "exec", CONTAINER_ID, "bash", "-c", 
-        f"cd {current_task_path} && yosys -s syn_script.ys"
-    ], check=True)
-    # Pull it to host so the runner can build the simulation
-    subprocess.run([
-        "docker", "cp", f"{CONTAINER_ID}:{current_task_path}/netlist.v", str(netlist_path)
-    ], check=True)
-   else:
-    print(">>> [SKIP] Netlist exists. Using current version for testing.")
+    if not netlist_path.exists():
+        print(">>> [INIT] Netlist not found. Generating initial baseline netlist...")
+        # Execute the synthesis portion ONLY
+        subprocess.run([
+            "docker", "exec", CONTAINER_ID, "bash", "-c", 
+            f"cd {current_task_path} && yosys -s syn_script.ys"
+        ], check=True)
+        # Pull it to host so the runner can build the simulation
+        subprocess.run([
+            "docker", "cp", f"{CONTAINER_ID}:{current_task_path}/netlist.v", str(netlist_path)
+        ], check=True)
+    else:
+        print(">>> [SKIP] Netlist exists. Using current version for testing.")
 
     sources = [netlist_path]
     runner = get_runner(sim)
