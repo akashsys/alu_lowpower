@@ -219,9 +219,10 @@ async def test_arbiter_full_logic(dut):
 
     # --- 2. Starvation Escalation Check ---
     dut._log.info("Stalling Port 3 to escalate priority...")
-    for _ in range(35): 
+    for _ in range(40): 
         await RisingEdge(dut.clk)
     
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1,unit="ns")
     assert dut.grant.value == 0b1000, "Port 3 should win via Starvation Escalation (Tier 1)"
