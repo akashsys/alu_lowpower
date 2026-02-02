@@ -60,32 +60,23 @@ module elastic_credit_arbiter (
     wire [3:0] high_pri_req = request_q & can_service_q & is_aged_q;
     wire [3:0] norm_pri_req = request_q & can_service_q;
 
-   always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             grant_pipe <= 4'b0000;
             grant_valid_pipe <= 1'b0;
         end else begin
-            // PRIORITY 1: High Priority (Aged) Contenders
             if (|high_pri_req) begin
-                // Select the highest index aged port (Port 3) first to ensure it wins
-                if (high_pri_req[3])      grant_pipe <= 4'b1000;
-                else if (high_pri_req[2]) grant_pipe <= 4'b0100;
-                else if (high_pri_req[1]) grant_pipe <= 4'b0010;
-                else                      grant_pipe <= 4'b0001;
+                grant_pipe <= high_pri_req & ~(high_pri_req - 4'b0001);
                 grant_valid_pipe <= 1'b1;
-            end 
-            // PRIORITY 2: Normal Contenders (Fixed Priority Port 0 first)
-            else if (|norm_pri_req) begin
+            end else if (|norm_pri_req) begin
                 grant_pipe <= norm_pri_req & ~(norm_pri_req - 4'b0001);
                 grant_valid_pipe <= 1'b1;
-            end 
-            else begin
+            end else begin
                 grant_pipe <= 4'b0000;
                 grant_valid_pipe <= 1'b0;
             end
         end
     end
-
  
     always @(*) begin
         grant = grant_pipe;
