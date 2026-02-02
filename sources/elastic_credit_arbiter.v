@@ -84,7 +84,7 @@ module elastic_credit_arbiter (
         grant_valid = grant_valid_pipe;
     end
 
-
+    integer j;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (j=0; j<4; j=j+1) begin
