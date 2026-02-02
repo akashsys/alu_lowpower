@@ -15,8 +15,3 @@ module elastic_credit_arbiter (
     // according to Specification.md
 
 endmodule
-
-
-
-
-
