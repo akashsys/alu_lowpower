@@ -1,27 +1,12 @@
 1. TASK
-Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way that it is synthesizable with clean timing and follow the area requirements. The design must manage resource allocation based on available "credits" and prevent source starvation using a dynamic aging mechanism. The final implementation must be optimized for the Sky130 HD technology library.
-
-The file sources/elastic_credit_arbiter.v already exists in the workspace. Do not use the create command. Instead, use str_replace to implement the logic into the existing module, or use bash to delete the file first if you prefer to rewrite it entirely.
-
-2. Technical Performance Targets
-Clock Period (T_clk): 3.2ns (312.5 MHz).
-Process: Sky130 HD (High Density).
-Timing Constraint: Must achieve positive Slack (WNS > 0) for Reg-to-Reg paths.
-Area Budget: Total chip area must not exceed 10,556 $\mu m^2$.
-Optimization Note: If gate-level sizing/buffering fails to close timing, you are expected to rebuilt the RTL to reduce combinational depth (e.g., separating arithmetic from selection) and re-synthesize.
+Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md that it is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
 
-3. Step-by-Step Execution Protocol
+2. Step-by-Step Execution Protocol
+The file sources/elastic_credit_arbiter.v already exists in the workspace having TODOs, you have to fill all TODOs and complete the RTL code. 
 
-This environment supports two modes of operation:
-
-RTL Synthesis Mode: Use this when you have modified the RTL logic. 
-Before running the bash script- bash sources/run_sta_cmd.sh
-, execute touch sources/FORCE_RESYNTHESIS in your terminal. This will trigger Yosys to re-map your RTL to a fresh gate-level netlist.
-
-Netlist ECO Mode: Use this if you are only swapping cell sizes or drive strengths in netlist.v. 
-Command: bash sources/run_sta_cmd.sh
-Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
+Then only run the bash script- bash sources/run_sta_cmd.sh
+ Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
 
 ## The script will print two critical sections to your terminal. You must parse both:
 
@@ -117,16 +102,14 @@ Now that you have identified the cells, upsize it, check the timing report(also 
 
 Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1. Again you can replace one cell or multiple cells at once.
 
-If you think you cant fix the timing with upsizing any more then you have to re-write the RTL and use RTL Synthesis mode to again do synthesis.
-
 ## Files Provided
 
 The files structure are as follows:
 SDC : sources/constraints.sdc (Constraint file- NO MODIFICATION,ONLY READ)
 LIB : sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
 MODEL CELLS: sources/cells (ONLY READING)
-STA TCL FILE : sources/run_sta.tcl (STA TCL FILE THAT YOU WILL SOURCE USING THE COMMAND source run_sta.tcl) (ONLY READ)
+BASH SCRIPT: run_sta_cmd.sh (To CONNECT TO DOCKER AND USE YOSYS AND STA)
 PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CELL SWAPPING IN THE NETLIST)
-RTL FILE : sources/elastic_credit_arbiter.v (TO PERFORM CHANGES)
+RTL FILE : sources/elastic_credit_arbiter.v (YOU WILL EDIT THIS)
 AREA TCL FILE: sources/area.ys
 SYNTHESIS TCL FILE: sources/syn_script.ys
