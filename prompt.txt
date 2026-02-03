@@ -6,6 +6,7 @@ The file already exists. Do not use create. Use the edit tool to replace the TOD
 
 2. Step-by-Step Execution Protocol
 The file sources/elastic_credit_arbiter.v already exists in the workspace having TODOs, you have to fill all TODOs and complete the RTL code. 
+Run export DOCKER_HOST=tcp://host.docker.internal:2375 in your terminal before running any other commands. This connects you to the Docker daemon running on my Windows machine.
 
 Then only run the bash script- bash sources/run_sta_cmd.sh
  Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
