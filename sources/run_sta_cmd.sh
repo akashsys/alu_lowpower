@@ -53,7 +53,8 @@ if [ "$INIT_REQUIRED" = true ]; then
     docker exec "$CONTAINER_NAME" mkdir -p "$UNIQUE_DIR"
     
     # Copy all starting files from Windows (via the bridge) into the folder
-    docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/*.v /openlane_mnt/*.ys /openlane_mnt/*.tcl $UNIQUE_DIR/ 2>/dev/null"
+    #docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/*.v /openlane_mnt/*.ys /openlane_mnt/*.tcl $UNIQUE_DIR/ 2>/dev/null"
+    docker exec "$CONTAINER_NAME" bash -c "cp -r /openlane_mnt/* $UNIQUE_DIR/ 2>/dev/null"
 fi
 
 # ==============================================================================
@@ -66,8 +67,16 @@ docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/elastic_credit_arbiter.v
 echo ">>> STATUS: Synthesizing in $UNIQUE_DIR..."
 docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
 
+echo ">>> STATUS: Generating Area Reports..."
+docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s area.ys" || exit 1
+
 echo ">>> STATUS: Timing Analysis..."
 docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl" || exit 1
 
 # Show reports
+echo "------------------------------------------------------------"
+echo "AREA REPORT:"
+docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/area_report.rpt"
+echo "------------------------------------------------------------"
+echo "TIMING REPORT:"
 docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/timing_report.rpt"
