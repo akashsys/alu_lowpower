@@ -1,17 +1,47 @@
-1. TASK
+YOUR TASK IS TO IMPLEMENT 4 PORT ELASTIC CREDIT ARBITER MODULE THAT GENERATES A TIMING CLEAN NETLIST WITHIN GIVEN AREA SPECIFICATION, YOU WILL IMPLEMENT THIS TASK IN FOLLOWING STEPS, IMPORTANT IS TO STRICTLY FOLLOW THIS STEPS, FOR ANY FILES ACCESS ISSUE IN ANY OF THE STEP FOLLOW THE FILES PROVIDED SECTION IN END.
+
+STEP 1
 Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md that it is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
-The file already exists. Do not use create. Use the edit tool to replace the TODO comments with the actual RTL logic, or use a bash command to overwrite the file content entirely."
+The file already exists. Do not use create. Use the edit tool to replace the TODO comments with the actual RTL logic.
+
+===============================================================================
+IMPORTANT RULES FOR THIS STEP
+===============================================================================
+- Edit ONLY the existing file: sources/elastic_credit_arbiter.v
+- Do NOT create a new file
+- Do NOT run any bash commands
+- Do NOT modify any other files
+- Focus ONLY on completing the RTL code
+
+After finishing the RTL edit, STOP.
 
 
-2. Step-by-Step Execution Protocol
-The file sources/elastic_credit_arbiter.v already exists in the workspace having TODOs, you have to fill all TODOs and complete the RTL code. 
-Run export DOCKER_HOST=tcp://host.docker.internal:2375 in your terminal before running any other commands. This connects you to the Docker daemon running on my Windows machine.
+STEP 2
+The file sources/elastic_credit_arbiter.v already exists in the workspace and has now been completed.
 
-Then only run the bash script- bash sources/run_sta_cmd.sh
- Important: This script dynamically creates an isolated workspace inside Docker, copies current sources/netlist.v , runs OpenSTA and Yosys.
+Run the following command in the terminal before running any other commands:
+export DOCKER_HOST=tcp://host.docker.internal:2375
 
-## The script will print two critical sections to your terminal. You must parse both:
+This connects you to the Docker daemon running on my Windows machine.
+
+Then run ONLY this bash script:
+bash sources/run_sta_cmd.sh
+
+Important:
+- This script dynamically creates an isolated workspace inside Docker
+- It copies current sources/netlist.v
+- It runs OpenSTA and Yosys
+
+Do NOT edit any RTL files in this step.
+Do NOT perform any ECO fixes yet.
+
+
+
+
+STEP 3 
+The script has printed two critical sections to the terminal output.
+You must parse both:
 
 AREA REPORT: Look for the line: Chip area of module at the bottom.
 EXAMPLE: Chip area for module '\elastic_credit_arbiter':61,111,111.
@@ -90,28 +120,34 @@ The Problem: 6.10ns is too slow. The data is "slow" because it had to pass throu
 SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
 
 
-5. Your TASK as an Agent:
+STEP 4- 
 
-Now that you have read Timing report and calculated area, your task is to find the gates in the "Target Zone" with a higher delay .Check their drive strength (the number at the end of the cell name, like _0 or _1).If it is _0, it is a " weak cell" you can try to upsize it to _1 or _2 or _4 to reduce the delay contributed by that cell in the path but also there is trade-off that whenever you upsize any cell to make it faster, you also increase the Area contributed by it towards area of module, so while you select any cell to upsize make sure you also check its Area in sky130_fd_sc_hd__tt_025C_1v80.lib
+- Identify cells in the critical path with high delay
+- Check their drive strength (_0, _1, _2, _4)
+- Prefer upsizing weak cells (_0 → _1 → _2 → _4)
+- Consider area trade-offs from sky130_fd_sc_hd__tt_025C_1v80.lib
+
+If slack is negative:
+- Select one or more candidate gates for upsizing
+- Use the Python script to perform cell swaps
+
+Example:
+python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1
+
+Iterate until timing improves while monitoring area impact.
 
 ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
 WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST,BUT TAKES MORE AREA) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST, BUT TAKE LEAST AREA)
 
-If the slack is negative, analyze the cells in the critical path.
 
-Look for cells where Delay is high relative to others. Select candidate gates for upsizing (e.g., changing sky130_fd_sc_hd__buf_1 to sky130_fd_sc_hd__buf_2) , if you want you can select one gate or multiple gates but also keep focus on its area from sky130_fd_sc_hd__tt_025C_1v80.lib. 
-
-Now that you have identified the cells, upsize it, check the timing report(also get an idea of area of that cell from .lib), do re-synthesize in yosys, check the chip area of module and iterate till you achieve the target.
-
-Use the Python code in sources/eco_fix.py to replace any cell. For example, if you locate the worst cell from timing report is  _5748_sky130_fd_sc_hd__o311ai_0 , then execute the command: python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1. Again you can replace one cell or multiple cells at once.
 
 ## Files Provided
 
 The files structure are as follows:
 SDC : sources/constraints.sdc (Constraint file- NO MODIFICATION,ONLY READ)
-LIB : sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
+LIB : sources/sky130_fd_sc_hd__tt_025C_1v80.lib(LIBRARY FILE- ALL THE CELLS DRIVE STRENGTH _1, _2, _4 DEFINED HERE, BEFORE ANY CELL SWAP YOU MUST ENSURE THAT IS AVAILABLE IN THIS LIB)
 MODEL CELLS: sources/cells (ONLY READING)
-BASH SCRIPT: run_sta_cmd.sh (To CONNECT TO DOCKER AND USE YOSYS AND STA)
+BASH SCRIPT: sources/run_sta_cmd.sh (To CONNECT TO DOCKER AND USE YOSYS AND STA)
 PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CELL SWAPPING IN THE NETLIST)
 RTL FILE : sources/elastic_credit_arbiter.v (YOU WILL EDIT THIS)
 AREA TCL FILE: sources/area.ys
