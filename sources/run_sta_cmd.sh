@@ -17,85 +17,57 @@ if [ "$CONNECTED" = false ]; then
     exit 1
 fi
 
-RUN_ID="job_${RANDOM}_$(date +%s)"
-UNIQUE_SOURCES_DIR="./workspaces/$RUN_ID/sources"
+#!/bin/bash
 
-echo ">>> Initializing isolated source sandbox: $UNIQUE_SOURCES_DIR"
-mkdir -p "$UNIQUE_SOURCES_DIR"
+# 1. Connectivity
+export DOCKER_HOST=tcp://host.docker.internal:2375
 
-# Copy original content into the sandbox
-cp -r ./sources/. "$UNIQUE_SOURCES_DIR/"
+# 2. State Management (The "Memory" of the task)
+STATE_FILE="./sources/.active_task_id"
+CONTAINER_NAME="openlane_main"  # The name of the virtual "box"
 
-# Update STATE_FILE to point to the sandbox
-STATE_FILE="$UNIQUE_SOURCES_DIR/.task_dir"
-
+# 3. Resume Check
 if [ -f "$STATE_FILE" ]; then
-    # ITERATION RUN: Read the existing directory name
-    UNIQUE_DIR=$(cat "$STATE_FILE")
-    echo "Syncing to existing workspace: $UNIQUE_DIR"
+    TASK_ID=$(cat "$STATE_FILE")
+    UNIQUE_DIR="/openlane/$TASK_ID"
+    echo ">>> RESUMING: Iterating in existing directory $UNIQUE_DIR"
+    INIT_REQUIRED=false
 else
-    # INITIAL RUN: Generate unique ID and save it
-    CHAR=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
-    RAND_LETTER=${CHAR[$RANDOM%26]}
-    RAND_NUM=$((RANDOM % 100))
-    UNIQUE_DIR="/openlane/task_${RAND_LETTER}_${RAND_NUM}_$RANDOM"
+    # NEW TASK: Generate a unique folder name
+    TASK_ID="task_$(date +%s)"
+    UNIQUE_DIR="/openlane/$TASK_ID"
+    echo "$TASK_ID" > "$STATE_FILE"
+    echo ">>> STARTING NEW: Creating unique directory $UNIQUE_DIR"
+    INIT_REQUIRED=true
+fi
+
+# 4. Start the "Box" (Container) if it's not running
+if [ ! "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
+    # Mount your Windows sources to a bridge called /openlane_mnt
+    docker run -d --name "$CONTAINER_NAME" -v "${PWD}/sources:/openlane_mnt" efabless/openlane:latest tail -f /dev/null
+fi
+
+# 5. INITIALIZATION (Only runs once for a new task)
+if [ "$INIT_REQUIRED" = true ]; then
+    # Create the unique folder INSIDE /openlane
+    docker exec "$CONTAINER_NAME" mkdir -p "$UNIQUE_DIR"
     
-    echo "$UNIQUE_DIR" > "$STATE_FILE"
-    echo "Provisioning new workspace: $UNIQUE_DIR"
-    docker exec openlane mkdir -p $UNIQUE_DIR || exit 1
+    # Copy all starting files from Windows (via the bridge) into the folder
+    docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/*.v /openlane_mnt/*.ys /openlane_mnt/*.tcl $UNIQUE_DIR/ 2>/dev/null"
 fi
 
 # ==============================================================================
-# 3. SYNCHRONIZE ISOLATED SOURCES TO CONTAINER
+# 6. EXECUTION & ITERATION (The Loop)
 # ==============================================================================
-# We copy from the UNIQUE sandbox, not the global ./sources
-echo ">>> Syncing sandbox sources to container workspace: $UNIQUE_DIR"
-docker cp "$UNIQUE_SOURCES_DIR/." openlane:$UNIQUE_DIR/ || exit 1
+# Sync only the RTL change if the agent edited the file on Windows
+echo ">>> Syncing latest RTL into $UNIQUE_DIR..."
+docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/elastic_credit_arbiter.v $UNIQUE_DIR/"
 
-# ==============================================================================
-# 4. SYNTHESIS STEP: RTL to Netlist
-# ==============================================================================
-# Check for the FORCE flag or missing netlist specifically in the sandbox
-if [ -f "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS" ] || [ ! -f "$UNIQUE_SOURCES_DIR/netlist.v" ]; then
-    echo ">>> STATUS: Starting RTL-to-Netlist Synthesis..."
-    
-    # Run Yosys inside the unique container directory
-    docker exec openlane bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
-    
-    # Copy the newly created netlist back to the ISOLATED Host sandbox
-    # This ensures Run A doesn't overwrite Run B's netlist
-    docker cp openlane:$UNIQUE_DIR/netlist.v "$UNIQUE_SOURCES_DIR/netlist.v"
-    
-    # Cleanup flag in the sandbox
-    [ -f "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS" ] && rm "$UNIQUE_SOURCES_DIR/FORCE_RESYNTHESIS"
-    echo ">>> SUCCESS: Netlist generated and synced to $UNIQUE_SOURCES_DIR/netlist.v"
-else
-    echo ">>> STATUS: Netlist exists in sandbox. Skipping synthesis to preserve ECO/Sizing changes."
-fi
+echo ">>> STATUS: Synthesizing in $UNIQUE_DIR..."
+docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
 
-# ==============================================================================
-# 5. FINAL SYNC: Push the Sandbox Netlist back to Container
-# ==============================================================================
-# This pushes the current netlist (whether freshly synthesized or agent-edited)
-docker cp "$UNIQUE_SOURCES_DIR/netlist.v" openlane:$UNIQUE_DIR/netlist.v || exit 1
+echo ">>> STATUS: Timing Analysis..."
+docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl" || exit 1
 
-# ==============================================================================
-# 6. RUN STATIC TIMING ANALYSIS (STA)
-# ==============================================================================
-echo ">>> STATUS: Running Static Timing Analysis..."
-docker exec openlane bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl" || exit 1
-docker exec openlane cat $UNIQUE_DIR/timing_report.rpt || exit 1
-
-# ==============================================================================
-# 7. RUN AREA ANALYSIS
-# ==============================================================================
-echo ">>> STATUS: Calculating Area..."
-docker exec openlane bash -c "cd $UNIQUE_DIR && yosys area.ys" || exit 1
-docker exec openlane cat $UNIQUE_DIR/area.rpt || exit 1
-
-# ==============================================================================
-# 8. TRIGGER PYTHON VALIDATION (Isolated)
-# ==============================================================================
-# Export the sandbox path so test_hidden.py knows where the RTL is
-export ISOLATED_SOURCES="$UNIQUE_SOURCES_DIR"
-pytest tests/test_hidden.py
+# Show reports
+docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/timing_report.rpt"
