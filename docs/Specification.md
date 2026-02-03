@@ -42,20 +42,15 @@ Clock and Reset:
 Inputs:
 - request[3:0]
     One bit per requester.
-    request[i] == 1 indicates requester i is requesting service.
-
 - packet_size[7:0]
-    Size of the transaction requested.
-    This value is compared against per-requester credit.
+    Size of the transaction requested. This value is compared against per-requester credit.
 
 Outputs:
 - grant[3:0]
-    One-hot grant vector.
-    At most one bit may be high in any cycle.
+    One-hot grant vector. At most one bit may be high in any cycle.
 
 - grant_valid
-    Indicates whether grant is valid in the current cycle.
-    grant_valid == 1 implies exactly one bit of grant is high.
+    Indicates whether grant is valid in the current cycle. If its high it means the request can be processed by module based on credits.
 
 
 ===============================================================================
@@ -63,140 +58,58 @@ PARAMETERS AND CONSTANTS
 ===============================================================================
 
 - Number of requesters is fixed at 4.
-- AGE_THRESHOLD is a constant (8-bit) that determines when a requester
-  becomes high priority. So whenever a request is made and its not granted its age counter increases by 1. If age_counter[i] reaches or exceeds AGE_THRESHOLD, the requester becomes
-a high priority request. A typical value for AGE_THRESHOLD is 8'h20.Now if more than one request becomes high priority then we need to follow priority with Req[0]>Req[1]>Req[2]>Req[3]
-- MAX_CREDIT is the maximum allowed credit value (8-bit, saturating). Set it to  8'hFF
+- AGE_THRESHOLD is a constant (8-bit) that determines when a requester becomes high priority. So whenever a valid request(request having enough credits) is made and its not granted, its age counter increases by 1. 
+If age_counter for a request reaches or exceeds AGE_THRESHOLD, the requester becomes a high priority request. A typical value for AGE_THRESHOLD is 8'h20. Now if more than one request becomes high priority then we need to follow priority with Req[0]>Req[1]>Req[2]>Req[3]. Even if in non-priority mode, if more than one request wants to access, the priority follows as Req[0]>Req[1]>Req[2]>Req[3]
+
+- MAX_CREDIT is the maximum allowed credit value (8-bit, saturating).
 
 
-===============================================================================
-INTERNAL STATE (PER REQUESTER)
-===============================================================================
+Each requester maintains
 
-Each requester maintains the following state:
-
-1) credit_bucket[i] (8-bit)
-   Represents how much data requester i is allowed to send.
-
-2) age_counter[i] (8-bit)
-   Represents how long requester i has been waiting without being granted.
+1) credit_bucket(8-bit)
+   credit bucket is how much credit the requester has in its bucket to send the data. If request wants send any packet of data, then it must have credits more or equal to packet size to be eligible.
+2) age_counter(8-bit)
+   Represents how long requester has been waiting without being granted.
 
 
 ===============================================================================
 CREDIT-BASED FLOW CONTROL
 ===============================================================================
 
-A request is eligible for arbitration only if:
-
-    credit_bucket[i] >= packet_size
-
+A request is eligible for arbitration only if: credit_bucket is greater than or equals to the packet_size.
 If this condition is false:
-- The request is ignored
-- The requester does not participate in arbitration
-- No grant may be issued to that requester
+- The request is ignored.
+- The requester does not participate in arbitration.
+- No grant may be issued to that requester.
+
+If any request is granted then  calculate a speculative credit left in its bucket that equals to remaining credits after transferring packet size of data added with pseudo randomness using LFSR that makes sure that arbiter is fair and it prevents one port from consistently "shadowing" another.
+
+If any request is not granted then calculate a speculative idle state credit in its bucket that equals to its original credit bucket added with pseudo randomness using LFSR , but make sure that idle state credit does not cross the MAX_CREDIT limit
+
+A request becomes a high priority if it has requested, eligible and waited too long(aged), whereas a request is normal priority if it has requested and eligible. As soon as you encounter a high priority requests on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output. This also hold true for normal priority requests, as soon as you see normal priority request on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output.
+
+Remember that grant can't handle multiple requests in high and normal priority modes, and can allow only one requests that follows priority order mentioned earlier.
 
 
-===============================================================================
-AGING RULES (STARVATION PREVENTION)
-===============================================================================
+- If request is granted in a cycle:
+      -its remaining credit equals to speculated credits discussed before. 
+      -its age counter resets.
+- If request is not granted in a cycle:
+      -its remaining credit follows elastic behaviour meaning it keeping updating its credit discussed before as speculated credits in idle state. 
+      -its age counter increments.
 
-Age behavior per requester:
-
-- If request[i] == 1 AND requester i is NOT granted in the cycle:
-      age_counter[i] increments by 1
-
-- If requester i IS granted:
-      age_counter[i] is reset to 0
-
-- If request[i] == 0:
-      age_counter[i] does not increment
-
-A requester is considered "aged" when:
-
-    age_counter[i] >= AGE_THRESHOLD
+A request is said to be aged if its age counter crosses or reaches the maximum threshold.
 
 
-===============================================================================
-PRIORITY CLASSIFICATION
-===============================================================================
-
-Requests are divided into two priority groups:
-
-HIGH PRIORITY REQUEST:
-- request[i] == 1
-- credit_bucket[i] >= packet_size
-- age_counter[i] >= AGE_THRESHOLD
-
-NORMAL PRIORITY REQUEST:
-- request[i] == 1
-- credit_bucket[i] >= packet_size
-
-
-===============================================================================
-ARBITRATION RULES
-===============================================================================
-
-Arbitration is evaluated once per clock cycle using sampled requests.
-
-Selection order:
-1) If any HIGH PRIORITY requests exist:
-       arbitration is performed only among HIGH PRIORITY requests
-2) Else if any NORMAL PRIORITY requests exist:
-       arbitration is performed among NORMAL PRIORITY requests
-3) Else:
-       no grant is issued
-
-Within a priority group:
-- Fixed-priority arbitration is used
-- The lowest index requester wins
-
-Priority order:
-    requester 0 > requester 1 > requester 2 > requester 3
 
 Only one requester may be granted per cycle.
 
 
-===============================================================================
-GRANT BEHAVIOR
-===============================================================================
-
-- grant is one-hot
-- grant_valid == 1 when a grant is issued
-- grant_valid == 0 when no grant is issued
-- grant corresponds to the arbitration decision for the current cycle
+-The grant signal must update within the same cycle as the request. If all request is removed we don't want grant valid or grant to be active to avoid any false requests getting to pass through the module. 
 
 
-===============================================================================
-CREDIT UPDATE RULES
-===============================================================================
 
-Credit update is performed per requester every cycle.
-
-If requester i IS granted:
-- credit_bucket[i] is reduced by packet_size and added by a small pseudo-random value
-- age_counter[i] is reset to 0
-
-If requester i is NOT granted:
-- credit_bucket[i] is allowed to increase (elastic recovery)
-- credit increase is limited to MAX_CREDIT (saturating behavior)
-- if request[i] == 1, age_counter[i] increments
-- if request[i] == 0, age_counter remains unchanged
-
-
-===============================================================================
-ELASTIC CREDIT RECOVERY
-===============================================================================
-
-Elastic behavior models recovery of capacity when a requester is idle.
-
-- Credits may increase even if no explicit downstream credit return exists
-- Credit recovery is not deterministic and may vary per cycle
-- Credit must never exceed MAX_CREDIT
-
-
-===============================================================================
 LFSR USAGE
-===============================================================================
 
 A Linear Feedback Shift Register (LFSR) is used internally to model
 pseudo-random behavior.
@@ -229,10 +142,15 @@ RESET BEHAVIOR
 ===============================================================================
 
 On reset (rst_n == 0):
-- All credit_bucket[i] values are initialized to a fixed mid-range value
-- All age_counter[i] values are set to 0
+- All credit_bucket values are initialized to a fixed mid-range value
+- All age_counter values are set to 0
+- Speculated bucket values are set to 0.
+- Speculated idle state bucket are set to 0.
+- Speculated age counter(responsible for incrementing age counter by 1)are set to 0.
 - No grant is issued
 - LFSR is seeded to a non-zero value
+- All request access are made to 0.
+- Outputs are set to 0.
 
 
 ===============================================================================
@@ -246,14 +164,6 @@ The implementation must guarantee:
 - Deterministic arbitration outcome for identical conditions
 - Credit saturation at MAX_CREDIT
 
-
-===============================================================================
-SUMMARY RULE
-===============================================================================
-
-Credit determines eligibility.
-Age determines urgency.
-Priority determines selection.
 
 
 ===============================================================================
