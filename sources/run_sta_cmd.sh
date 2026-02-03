@@ -1,4 +1,8 @@
 
+#!/bin/bash
+# Point to your Windows Docker Engine
+export DOCKER_HOST=tcp://host.docker.internal:2375
+
 # 2. State Management (The "Memory" of the task)
 STATE_FILE="./sources/.active_task_id"
 CONTAINER_NAME="openlane"  # The name of the virtual "box"
