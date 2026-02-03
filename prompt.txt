@@ -1,5 +1,24 @@
 YOUR TASK IS TO IMPLEMENT 4 PORT ELASTIC CREDIT ARBITER MODULE THAT GENERATES A TIMING CLEAN NETLIST WITHIN GIVEN AREA SPECIFICATION, YOU WILL IMPLEMENT THIS TASK IN FOLLOWING STEPS, IMPORTANT IS TO STRICTLY FOLLOW THIS STEPS, FOR ANY FILES ACCESS ISSUE IN ANY OF THE STEP FOLLOW THE FILES PROVIDED SECTION IN END.
 
+-------------------------------------------------------------------------------------------------------
+FILE MODIFICATION RULE (NON-NEGOTIABLE):                                                              |
+                                                                                                      |
+You ARE allowed to completely redesign, refactor, or re-architect the RTL                             |
+to improve timing and reduce combinational depth.                                                     |
+                                                                                                      |
+However:                                                                                              |
+- All RTL changes MUST be applied by EDITING the EXISTING file                                        |
+  sources/elastic_credit_arbiter.v                                                                    |
+- You MUST treat this file as the single canonical artifact                                           |
+- You MUST replace the contents of this file using the edit tool                                      |
+- You MUST NOT use create                                                                             |
+- You MUST NOT write files using bash redirection (cat >, tee, etc.)                                  |
+                                                                                                      |
+Even if the RTL is fully redesigned, it MUST overwrite the same file                                  |
+using edit, not create.                                                                               |
+-------------------------------------------------------------------------------------------------------
+
+
 STEP 1
 Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md that it is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
