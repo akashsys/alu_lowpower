@@ -1,6 +1,8 @@
 1. TASK
 Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md that it is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
+The file already exists. Do not use create. Use the edit tool to replace the TODO comments with the actual RTL logic, or use a bash command to overwrite the file content entirely."
+
 
 2. Step-by-Step Execution Protocol
 The file sources/elastic_credit_arbiter.v already exists in the workspace having TODOs, you have to fill all TODOs and complete the RTL code. 
