@@ -181,7 +181,7 @@ Create a 4-port, credit-based arbiter that manages resource allocation across fo
 
 Performance Constraints-
 Target Clock Period: 3.2ns (312.5 MHz) using the Sky130 HD library.
-Timing Requirement: The design must achieve zero or positive slack after synthesis. The agent is responsible for ensuring the combinational logic depth is minimized to meet this frequency.
+Timing Requirement: The design must achieve zero or positive slack after synthesis. The agent is responsible for ensuring the combinational logic depth is minimized to meet this frequency. Further, even after synthesis , timing is not we may use ECOs to fix to upsize slow cells.
 Physical Budget: Total area must not exceed approximately 10,556 micrometere^2.
 
 
@@ -231,7 +231,7 @@ Setup Time (Max-Delay) Fix Strategy
     3. Logic Restructuring:(If sizing fails) move or reduce the levels of logic between registers.
     4. Swapping Cells: Swap cells to a LVT OR LVTLL version if it that has lesser delay.
 
-**IN THIS TASK IF YOU ARE NOT ABLE TO FIX TIMING "CELL SIZING" THEN YOU MUST CHANGE THE RTL AND DO RE-SYNTHESIS"
+**IN THIS TASK TO FIX TIMING USE "CELL SIZING" , IF NETLIST IS NOT ABLE TO MEET TIMING**
 
 ===============================================================================
 File Structure
