@@ -1,30 +1,7 @@
-# 1. Point to the Windows Host bridge
-export DOCKER_HOST=tcp://host.docker.internal:2375
-
-# 2. Connection Retry (3 attempts)
-CONNECTED=false
-for i in {1..3}; do
-    if docker ps > /dev/null 2>&1; then
-        CONNECTED=true
-        break
-    fi
-    echo "Waiting for Docker daemon... attempt $i/3"
-    sleep 2
-done
-
-if [ "$CONNECTED" = false ]; then
-    echo "CRITICAL ERROR: Docker Daemon unreachable at $DOCKER_HOST"
-    exit 1
-fi
-
-#!/bin/bash
-
-# 1. Connectivity
-export DOCKER_HOST=tcp://host.docker.internal:2375
 
 # 2. State Management (The "Memory" of the task)
 STATE_FILE="./sources/.active_task_id"
-CONTAINER_NAME="openlane_main"  # The name of the virtual "box"
+CONTAINER_NAME="openlane"  # The name of the virtual "box"
 
 # 3. Resume Check
 if [ -f "$STATE_FILE" ]; then
