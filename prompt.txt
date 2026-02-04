@@ -1,5 +1,37 @@
 YOUR TASK IS TO IMPLEMENT 4 PORT ELASTIC CREDIT ARBITER MODULE THAT GENERATES A TIMING CLEAN NETLIST WITHIN GIVEN AREA SPECIFICATION, YOU WILL IMPLEMENT THIS TASK IN FOLLOWING STEPS, IMPORTANT IS TO STRICTLY FOLLOW THIS STEPS, FOR ANY FILES ACCESS ISSUE IN ANY OF THE STEP FOLLOW THE FILES PROVIDED SECTION IN END.
 
+
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+IMPORTANT WORKFLOW NOTE:
+
+The Docker-based scripts are intended for synthesis, timing analysis,
+and experimentation only. They copy files INTO Docker but do NOT
+automatically copy any changes back to the local workspace.
+
+You MAY experiment, iterate, or prototype RTL changes inside the
+Docker container while debugging or fixing timing issues.
+
+However, Docker is an isolated environment.
+
+Before concluding the task, you MUST manually copy or paste your
+FINAL, CONFIRMED RTL implementation back into the local workspace file:
+
+    sources/elastic_credit_arbiter.v
+
+Only the contents of sources/elastic_credit_arbiter.v in the local
+workspace are evaluated by the grader.
+
+After completing your implementation, always verify that
+sources/elastic_credit_arbiter.v in the local workspace contains
+your full and final RTL design.
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+
+
+
 -------------------------------------------------------------------------------------------------------
 FILE MODIFICATION RULE (NON-NEGOTIABLE):                                                              |
                                                                                                       |
@@ -34,7 +66,6 @@ IMPORTANT RULES FOR THIS STEP
 - Focus ONLY on completing the RTL code
 
 After finishing the RTL edit, STOP.
-
 
 STEP 2
 The file sources/elastic_credit_arbiter.v already exists in the workspace and has now been completed.
