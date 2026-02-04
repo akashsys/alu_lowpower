@@ -4,32 +4,13 @@ YOUR TASK IS TO IMPLEMENT 4 PORT ELASTIC CREDIT ARBITER MODULE THAT GENERATES A 
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 
-IMPORTANT WORKFLOW NOTE:
+IMPORTANT WORKFLOW NOTE: 
+"All edits must be made to files in the LOCAL workspace, NOT in the Docker container"
+"The Docker scripts copy files IN for analysis only - they do NOT sync changes back"
+"Always edit sources/elastic_credit_arbiter.v in your current workspace directory"
+Create a netlist.v file first in current workspace directory
 
-The Docker-based scripts are intended for synthesis, timing analysis,
-and experimentation only. They copy files INTO Docker but do NOT
-automatically copy any changes back to the local workspace.
-
-You MAY experiment, iterate, or prototype RTL changes inside the
-Docker container while debugging or fixing timing issues.
-
-However, Docker is an isolated environment.
-
-Before concluding the task, you MUST manually copy or paste your
-FINAL, CONFIRMED RTL implementation back into the local workspace file:
-
-    sources/elastic_credit_arbiter.v
-
-Only the contents of sources/elastic_credit_arbiter.v in the local
-workspace are evaluated by the grader.
-
-After completing your implementation, always verify that
-sources/elastic_credit_arbiter.v in the local workspace contains
-your full and final RTL design.
 -------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
-
-
 
 
 -------------------------------------------------------------------------------------------------------
@@ -65,11 +46,8 @@ IMPORTANT RULES FOR THIS STEP
 - Do NOT modify any other files
 - Focus ONLY on completing the RTL code
 
-After finishing the RTL edit, STOP.
 
 STEP 2
-The file sources/elastic_credit_arbiter.v already exists in the workspace and has now been completed.
-
 Run the following command in the terminal before running any other commands:
 export DOCKER_HOST=tcp://host.docker.internal:2375
 
@@ -85,8 +63,6 @@ Important:
 
 Do NOT edit any RTL files in this step.
 Do NOT perform any ECO fixes yet.
-
-
 
 
 STEP 3 
