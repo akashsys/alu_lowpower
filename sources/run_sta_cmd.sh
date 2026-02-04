@@ -1,5 +1,5 @@
 #!/bin/bash
-# Point to your Windows Docker Engine
+# 1. Point to your Windows Docker Engine
 export DOCKER_HOST=tcp://host.docker.internal:2375
 
 # 2. State Management
@@ -9,32 +9,32 @@ CONTAINER_NAME="openlane"
 # 3. Resume Check
 if [ -f "$STATE_FILE" ]; then
     TASK_ID=$(cat "$STATE_FILE")
-    UNIQUE_DIR="/openlane/$TASK_ID"
-    echo ">>> RESUMING: Iterating in existing directory $UNIQUE_DIR"
+    echo ">>> RESUMING: Task ID $TASK_ID"
 else
     TASK_ID="task_$(date +%s)"
-    UNIQUE_DIR="/openlane/$TASK_ID"
     echo "$TASK_ID" > "$STATE_FILE"
-    echo ">>> STARTING NEW: Creating unique directory $UNIQUE_DIR"
+    echo ">>> STARTING NEW: $TASK_ID"
 fi
+UNIQUE_DIR="/openlane/$TASK_ID"
 
-# 4. Start the "Box" without volume mounts (Clean Start)
+# 4. Start the Container with a Volume Mount
+# We map your local 'sources' folder to a fixed path in the container
 if [ ! "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
-    # Removed -v mounting to fix the "No such file" errors
-    docker run -d --name "$CONTAINER_NAME" efabless/openlane:latest tail -f /dev/null
+    echo ">>> Initializing Docker Container with Volume Mount..."
+    docker run -d \
+      --name "$CONTAINER_NAME" \
+      -v "$(pwd)/sources:/host_sync" \
+      efabless/openlane:latest tail -f /dev/null
 fi
 
-# 5. INITIALIZATION & SYNC (Pushing local files directly into the container)
-# We use 'mkdir' and 'docker cp' instead of relying on /openlane_mnt
-docker exec "$CONTAINER_NAME" mkdir -p "$UNIQUE_DIR"
-echo ">>> Syncing all sources from host to Docker container..."
-docker cp "./sources/." "$CONTAINER_NAME":"$UNIQUE_DIR/"
+# 5. Connect the Unique Directory to the Synchronized Volume
+# This ensures Yosys/STA run in $UNIQUE_DIR but write to your Windows folder
+docker exec "$CONTAINER_NAME" mkdir -p "/openlane"
+docker exec "$CONTAINER_NAME" ln -sfn "/host_sync" "$UNIQUE_DIR"
 
-# ==============================================================================
-# 6. EXECUTION & ITERATION
-# ==============================================================================
-# We no longer 'cp' from /openlane_mnt; we just run the tools in $UNIQUE_DIR
-echo ">>> STATUS: Synthesizing in $UNIQUE_DIR..."
+# 6. EXECUTION
+echo ">>> STATUS: Running Synthesis in $UNIQUE_DIR..."
+# Note: Because of the mount, the container is now reading/writing YOUR Windows files
 docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
 
 echo ">>> STATUS: Generating Area Reports..."
@@ -50,4 +50,5 @@ docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/area_report.rpt"
 echo "------------------------------------------------------------"
 echo "TIMING REPORT:"
 docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/timing_report.rpt"
-docker cp "$CONTAINER_NAME":"$UNIQUE_DIR/elastic_credit_arbiter.v" "./sources/elastic_credit_arbiter.v"
+
+echo ">>> SUCCESS: Volume Sync Active. Check sources/elastic_credit_arbiter.v on Windows."
