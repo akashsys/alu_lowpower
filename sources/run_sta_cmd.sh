@@ -1,39 +1,50 @@
+
 #!/bin/bash
 # Point to your Windows Docker Engine
 export DOCKER_HOST=tcp://host.docker.internal:2375
 
-# 2. State Management
+# 2. State Management (The "Memory" of the task)
 STATE_FILE="./sources/.active_task_id"
-CONTAINER_NAME="openlane"
+CONTAINER_NAME="openlane"  # The name of the virtual "box"
 
 # 3. Resume Check
 if [ -f "$STATE_FILE" ]; then
     TASK_ID=$(cat "$STATE_FILE")
     UNIQUE_DIR="/openlane/$TASK_ID"
     echo ">>> RESUMING: Iterating in existing directory $UNIQUE_DIR"
+    INIT_REQUIRED=false
 else
+    # NEW TASK: Generate a unique folder name
     TASK_ID="task_$(date +%s)"
     UNIQUE_DIR="/openlane/$TASK_ID"
     echo "$TASK_ID" > "$STATE_FILE"
     echo ">>> STARTING NEW: Creating unique directory $UNIQUE_DIR"
+    INIT_REQUIRED=true
 fi
 
-# 4. Start the "Box" without volume mounts (Clean Start)
+# 4. Start the "Box" (Container) if it's not running
 if [ ! "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
-    # Removed -v mounting to fix the "No such file" errors
-    docker run -d --name "$CONTAINER_NAME" efabless/openlane:latest tail -f /dev/null
+    # Mount your Windows sources to a bridge called /openlane_mnt
+    docker run -d --name "$CONTAINER_NAME" -v "${PWD}/sources:/openlane_mnt" efabless/openlane:latest tail -f /dev/null
 fi
 
-# 5. INITIALIZATION & SYNC (Pushing local files directly into the container)
-# We use 'mkdir' and 'docker cp' instead of relying on /openlane_mnt
-docker exec "$CONTAINER_NAME" mkdir -p "$UNIQUE_DIR"
-echo ">>> Syncing all sources from host to Docker container..."
-docker cp "./sources/." "$CONTAINER_NAME":"$UNIQUE_DIR/"
+# 5. INITIALIZATION (Only runs once for a new task)
+if [ "$INIT_REQUIRED" = true ]; then
+    # Create the unique folder INSIDE /openlane
+    docker exec "$CONTAINER_NAME" mkdir -p "$UNIQUE_DIR"
+    
+    # Copy all starting files from Windows (via the bridge) into the folder
+    #docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/*.v /openlane_mnt/*.ys /openlane_mnt/*.tcl $UNIQUE_DIR/ 2>/dev/null"
+    docker exec "$CONTAINER_NAME" bash -c "cp -r /openlane_mnt/* $UNIQUE_DIR/ 2>/dev/null"
+fi
 
 # ==============================================================================
-# 6. EXECUTION & ITERATION
+# 6. EXECUTION & ITERATION (The Loop)
 # ==============================================================================
-# We no longer 'cp' from /openlane_mnt; we just run the tools in $UNIQUE_DIR
+# Sync only the RTL change if the agent edited the file on Windows
+echo ">>> Syncing latest RTL into $UNIQUE_DIR..."
+docker exec "$CONTAINER_NAME" bash -c "cp /openlane_mnt/elastic_credit_arbiter.v $UNIQUE_DIR/"
+
 echo ">>> STATUS: Synthesizing in $UNIQUE_DIR..."
 docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
 
@@ -50,4 +61,3 @@ docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/area_report.rpt"
 echo "------------------------------------------------------------"
 echo "TIMING REPORT:"
 docker exec "$CONTAINER_NAME" cat "$UNIQUE_DIR/timing_report.rpt"
-docker cp "$CONTAINER_NAME":"$UNIQUE_DIR/elastic_credit_arbiter.v" "./sources/elastic_credit_arbiter.v"
