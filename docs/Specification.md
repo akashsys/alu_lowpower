@@ -10,10 +10,14 @@ PURPOSE
 This module controls access to a shared resource among multiple requesters. Only one requester may access the resource per clock cycle. This module has a 1-cycle entry/exit latency.
 
 The design enforces:
-1) Credit-based flow control
-2) Starvation prevention
-3) Deterministic arbitration
-4) Elastic recovery when the system is idle
+
+1) **Credit-based flow control**: Each requester maintains a credit bucket that tracks its available resource capacity. A requester can only be granted access if its credit bucket value is greater than or equal to the current packet_size. When a grant is issued, requester's credit bucket is updated as descriped further. This mechanism prevents resource oversubscription.
+
+2) **Starvation prevention**: Each requester maintains an age counter that increments every cycle when the requester is actively requesting (Has enough credits and request signal asserted) but not granted access. Once the age counter reaches the AGE_THRESHOLD, that requester transitions to high-priority status.
+
+3) **Deterministic arbitration**: When multiple requesters compete for access, a fixed priority order (Requester[0] > Requester[1] > Requester[2] > Requester[3]) is enforced.
+
+4) **Elastic recovery when the system is idle**: When a requester is not actively requesting, its credit bucket is incrementally replenished using LFSR-based pseudo-random perturbations, up to a maximum of MAX_CREDIT. This "elastic" behavior allows credit capacity to recover during periods of inactivity, ensuring the system can handle future bursts of traffic. Note: Credit recovery occurs only when the requester is truly idle (request signal = 0), not when it is actively requesting but waiting for a grant.
 
 
 ===============================================================================
