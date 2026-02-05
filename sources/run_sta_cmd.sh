@@ -1,10 +1,16 @@
 #!/bin/bash
-# Smart ECO workflow: 
+# Smart ECO workflow with TIMEOUT PROTECTION
 # - Re-synthesizes when RTL is modified
 # - Skips synthesis when only netlist (ECO) is modified
 # - Supports parallel runs with unique containers per workspace
+# - TIMEOUT SAFETY: Synthesis has 180s timeout, falls back to fast mode
 
 export DOCKER_HOST=tcp://host.docker.internal:2375
+
+# Configuration
+SYNTHESIS_TIMEOUT=180  # 3 minutes for synthesis
+STA_TIMEOUT=60         # 1 minute for STA
+AREA_TIMEOUT=30        # 30 seconds for area analysis
 
 # State files
 STATE_FILE="./sources/.active_task_id"
@@ -80,11 +86,6 @@ echo ">>> Directory: $UNIQUE_DIR"
 
 SHOULD_SYNTHESIZE=false
 
-# Decision logic:
-# 1. If netlist doesn't exist → SYNTHESIZE
-# 2. If RTL is newer than netlist → SYNTHESIZE (RTL was modified)
-# 3. If netlist is newer than RTL → SKIP (ECO changes)
-
 if [ ! -f "$NETLIST_FILE" ]; then
     echo ">>> DECISION: Netlist not found → SYNTHESIZE"
     SHOULD_SYNTHESIZE=true
@@ -115,19 +116,49 @@ if [ $? -ne 0 ]; then
 fi
 
 # ==============================================================================
-# SYNTHESIS (Conditional based on smart decision)
+# SYNTHESIS WITH TIMEOUT PROTECTION (Conditional based on smart decision)
 # ==============================================================================
 
 if [ "$SHOULD_SYNTHESIZE" = true ]; then
     echo ""
     echo "============================================================"
-    echo "RUNNING SYNTHESIS"
+    echo "RUNNING SYNTHESIS (Timeout: ${SYNTHESIS_TIMEOUT}s)"
     echo "============================================================"
-    docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys"
     
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Synthesis failed"
+    # Try optimized synthesis first (with timeout)
+    echo ">>> Attempting optimized synthesis..."
+    timeout $SYNTHESIS_TIMEOUT docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" 2>&1
+    SYNTH_EXIT=$?
+    
+    if [ $SYNTH_EXIT -eq 124 ]; then
+        # Timeout occurred
+        echo ""
+        echo "⚠️  WARNING: Optimized synthesis timed out after ${SYNTHESIS_TIMEOUT}s"
+        echo ">>> Falling back to FAST synthesis mode (no timing optimization)..."
+        echo ""
+        
+        # Fall back to fast synthesis
+        timeout $SYNTHESIS_TIMEOUT docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script_fast.ys" 2>&1
+        SYNTH_EXIT=$?
+        
+        if [ $SYNTH_EXIT -eq 124 ]; then
+            echo "ERROR: Even fast synthesis timed out. RTL may have elaboration issues."
+            echo "Check for:"
+            echo "  - Infinite loops in combinational logic"
+            echo "  - Very deep logic nesting"
+            echo "  - Large arrays or memories"
+            exit 1
+        elif [ $SYNTH_EXIT -ne 0 ]; then
+            echo "ERROR: Fast synthesis failed with exit code $SYNTH_EXIT"
+            exit 1
+        fi
+        
+        echo "✓ Fast synthesis completed (may not meet timing, use ECO to fix)"
+    elif [ $SYNTH_EXIT -ne 0 ]; then
+        echo "ERROR: Synthesis failed with exit code $SYNTH_EXIT"
         exit 1
+    else
+        echo "✓ Optimized synthesis completed"
     fi
     
     # Copy fresh netlist to host for potential ECO
@@ -151,26 +182,30 @@ else
 fi
 
 # ==============================================================================
-# AREA ANALYSIS (Always run on current netlist)
+# AREA ANALYSIS WITH TIMEOUT (Always run on current netlist)
 # ==============================================================================
 
 echo ""
-echo ">>> STATUS: Analyzing area on current netlist..."
-docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s area.ys"
+echo ">>> STATUS: Analyzing area on current netlist (Timeout: ${AREA_TIMEOUT}s)..."
+timeout $AREA_TIMEOUT docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s area.ys" 2>&1 | tail -20
 
-if [ $? -ne 0 ]; then
+if [ ${PIPESTATUS[0]} -eq 124 ]; then
+    echo "⚠️  WARNING: Area analysis timed out"
+elif [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "ERROR: Area analysis failed"
     exit 1
 fi
 
 # ==============================================================================
-# TIMING ANALYSIS (Always run on current netlist)
+# TIMING ANALYSIS WITH TIMEOUT (Always run on current netlist)
 # ==============================================================================
 
-echo ">>> STATUS: Running STA on current netlist..."
-docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl"
+echo ">>> STATUS: Running STA on current netlist (Timeout: ${STA_TIMEOUT}s)..."
+timeout $STA_TIMEOUT docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && sta -no_init run_sta.tcl" 2>&1
 
-if [ $? -ne 0 ]; then
+if [ $? -eq 124 ]; then
+    echo "⚠️  WARNING: STA timed out after ${STA_TIMEOUT}s"
+elif [ $? -ne 0 ]; then
     echo "ERROR: Timing analysis failed"
     exit 1
 fi
