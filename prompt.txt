@@ -1,37 +1,36 @@
-YOUR TASK IS TO IMPLEMENT 4 PORT ELASTIC CREDIT ARBITER MODULE THAT GENERATES A TIMING CLEAN NETLIST WITHIN GIVEN AREA SPECIFICATION, YOU WILL IMPLEMENT THIS TASK IN FOLLOWING STEPS, IMPORTANT IS TO STRICTLY FOLLOW THIS STEPS, FOR ANY FILES ACCESS ISSUE IN ANY OF THE STEP FOLLOW THE FILES PROVIDED SECTION IN END.
-
-
--------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
-
+-------------------------------------------------------------------------------------------------------------------------------
 IMPORTANT WORKFLOW NOTE: 
 "Always edit sources/elastic_credit_arbiter.v in your current workspace directory"
 Create a netlist.v file first in current workspace directory
 
--------------------------------------------------------------------------------------------------------
+When modifying existing files like tb_elastic_credit_arbiter.v or the RTL, do not use the create command. Use the str_replace command to edit specific blocks, or if a full rewrite is necessary, use the insert command with the overwrite=True flag (or your tool's equivalent for replacing existing files)
+
+FILE MODIFICATION RULE (NON-NEGOTIABLE):                                                              
+                                                                                                      
+You ARE allowed to completely redesign, refactor, or re-architect the RTL                             
+to improve timing and reduce combinational depth.                                                     
+                                                                                                      
+However:                                                                                              
+- All RTL changes MUST be applied by EDITING the EXISTING file                                        
+  sources/elastic_credit_arbiter.v                                                                    
+- You MUST treat this file as the single canonical artifact                                           
+- You MUST replace the contents of this file using the edit tool                                      
+- You MUST NOT use create                                                                             
+- You MUST NOT write files using bash redirection (cat >, tee, etc.)                                  
+                                                                                                      
+Even if the RTL is fully redesigned, it MUST overwrite the same file                                  
+using edit, not create.                                                                               
+----------------------------------------------------------------------------------------------------------------------------------
 
 
--------------------------------------------------------------------------------------------------------
-FILE MODIFICATION RULE (NON-NEGOTIABLE):                                                              |
-                                                                                                      |
-You ARE allowed to completely redesign, refactor, or re-architect the RTL                             |
-to improve timing and reduce combinational depth.                                                     |
-                                                                                                      |
-However:                                                                                              |
-- All RTL changes MUST be applied by EDITING the EXISTING file                                        |
-  sources/elastic_credit_arbiter.v                                                                    |
-- You MUST treat this file as the single canonical artifact                                           |
-- You MUST replace the contents of this file using the edit tool                                      |
-- You MUST NOT use create                                                                             |
-- You MUST NOT write files using bash redirection (cat >, tee, etc.)                                  |
-                                                                                                      |
-Even if the RTL is fully redesigned, it MUST overwrite the same file                                  |
-using edit, not create.                                                                               |
--------------------------------------------------------------------------------------------------------
 
+Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md  such that it follows all this behaviour 
+- Credit-based flow control
+- Starvation prevention using aging
+- Fixed-priority arbitration
+- Elastic credit recovery behavior
 
-STEP 1
-Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md that it is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
+ that is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
 The file already exists. Do not use create. Use the edit tool to replace the TODO comments with the actual RTL logic.
 
@@ -45,7 +44,7 @@ IMPORTANT RULES FOR THIS STEP
 - Focus ONLY on completing the RTL code
 
 
-STEP 2
+STEP 1
 Run the following command in the terminal before running any other commands:
 export DOCKER_HOST=tcp://host.docker.internal:2375
 
@@ -63,7 +62,7 @@ Do NOT edit any RTL files in this step.
 Do NOT perform any ECO fixes yet.
 
 
-STEP 3 
+STEP 2
 The script has printed two critical sections to the terminal output.
 You must parse both:
 
@@ -144,8 +143,9 @@ The Problem: 6.10ns is too slow. The data is "slow" because it had to pass throu
 SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
 
 
-STEP 4- 
+STEP 3- IF SYNTHESIZED NETLIST(WITHOUT ANY EC0) SLACK>-0.20ns, YOU CANNOT PERFORM ECO FIXES. YOU MUST REBUILT THE RTL TILL BY REDUCING THE COMBINATIONAL PATH DELAYS SUCH THAT SLACK BECOMES LESS THAN -0.30ns. RE-BUILT AND RE-PERFORM SYNTHESIS STA AND AREA ANALYSIS TO CHECK WHETHER SLACK IS LESS THAN -0.30ns or not. 
 
+STEP 4- IF THE SYNTHESIZED NETLIST SLACK<-0.20ns THEN REMAINING TIMING CLEANING YOU CAN TRY USING ECO FIXES-
 - Identify cells in the critical path with high delay
 - Check their drive strength (_0, _1, _2, _4)
 - Prefer upsizing weak cells (_0 → _1 → _2 → _4)
@@ -154,12 +154,9 @@ STEP 4-
 If slack is negative:
 - Select one or more candidate gates for upsizing
 - Use the Python script to perform cell swaps
-
 Example:
 python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1
 Iterate until timing improves while monitoring area impact.
-
-
 ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
 WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST,BUT TAKES MORE AREA) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST, BUT TAKE LEAST AREA)
 
