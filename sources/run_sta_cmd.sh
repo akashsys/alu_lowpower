@@ -69,13 +69,11 @@ fi
 # 6. EXECUTION & ITERATION
 # ==============================================================================
 echo ">>> STATUS: Synthesizing in $UNIQUE_DIR..."
-docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys"
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: Synthesis failed"
-    docker stop "$CONTAINER_NAME" 2>/dev/null
-    docker rm "$CONTAINER_NAME" 2>/dev/null
-    exit 1
+if [ "$SKIP_SYNTH" = "1" ] && [ -f "./sources/netlist.v" ]; then
+    echo ">>> ECO MODE: Skipping synthesis, using existing netlist.v..."
+else
+    echo ">>> STATUS: Synthesizing fresh netlist in $UNIQUE_DIR..."
+    docker exec "$CONTAINER_NAME" bash -c "cd $UNIQUE_DIR && yosys -s syn_script.ys" || exit 1
 fi
 
 echo ">>> STATUS: Generating Area Reports..."
