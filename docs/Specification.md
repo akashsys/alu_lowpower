@@ -73,7 +73,7 @@ Each requester maintains
 
 
 ===============================================================================
-CREDIT-BASED FLOW CONTROL
+WORKING
 ===============================================================================
 
 A request is eligible for arbitration only if: credit_bucket is greater than or equals to the packet_size.
@@ -100,13 +100,9 @@ Remember that grant can't handle multiple requests in high and normal priority m
 
 A request is said to be aged if its age counter crosses or reaches the maximum threshold.
 
-
-
 Only one requester may be granted per cycle.
 
-
 -The grant signal must update within the same cycle as the request. If all request is removed we don't want grant valid or grant to be active to avoid any false requests getting to pass through the module. 
-
 
 
 LFSR USAGE
