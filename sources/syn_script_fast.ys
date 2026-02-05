@@ -1,3 +1,6 @@
+# FAST SYNTHESIS MODE (For initial testing, no aggressive optimization)
+# Use this if syn_script.ys times out
+
 # 1. Read the Speculative RTL
 read_verilog elastic_credit_arbiter.v
 
@@ -16,16 +19,14 @@ synth -top elastic_credit_arbiter
 # 4. Map to Flip-Flops
 dfflibmap -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
 
-# 5. Timing-Driven Logic Mapping
-# Using -D 3200 (clock period in ps) for more achievable optimization
-# Original -D 2000 was too aggressive and caused timeouts
-abc -liberty sky130_fd_sc_hd__tt_025C_1v80.lib -D 3200
+# 5. Basic Logic Mapping (NO TIMING OPTIMIZATION - Fast but may not meet timing)
+# This will complete quickly but produce larger/slower results
+abc -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # 6. Convert 'assign' statements to physical buffers
 insbuf -buf sky130_fd_sc_hd__buf_2 A X
 
 # 7. Final Netlist Cleanup
-# Remove 'assign' statements and ensure no nets are left floating
 setundef -zero
 splitnets -ports
 opt_clean -purge
