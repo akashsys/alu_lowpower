@@ -14,8 +14,11 @@ import shutil
 import atexit
 
 # --- CONFIGURATION ---
-# Generate unique container ID per test instance (fixes race condition)
-CONTAINER_ID = f"openlane_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+# Use environment variable to persist ID across process forks (fixes container mismatch)
+if "ACTIVE_CONTAINER_ID" not in os.environ:
+    os.environ["ACTIVE_CONTAINER_ID"] = f"openlane_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+
+CONTAINER_ID = os.environ["ACTIVE_CONTAINER_ID"]
 
 def get_dynamic_container_path(state_file_override=None):
     """Get unique task path with high-resolution timestamp to prevent collisions"""
@@ -35,7 +38,7 @@ def get_dynamic_container_path(state_file_override=None):
         path = state_file.read_text().strip()
         if path:
             return path
-    
+            
     # Generate unique path with nanosecond timestamp + PID + UUID
     # This prevents collisions even with simultaneous starts
     timestamp_ns = int(time.time() * 1e9)
@@ -56,6 +59,7 @@ def get_dynamic_container_path(state_file_override=None):
 # ==============================================================================
 def test_vlsi_signoff_runner():
     """Orchestrates sync and Cocotb simulation."""
+    # os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     
     sim = os.getenv("SIM", "icarus")
@@ -74,6 +78,7 @@ def test_vlsi_signoff_runner():
         state_file = sources_dir / ".task_dir"
 
     # Resolve dynamic path for this specific agent task
+    # (Pass the state_file path to your helper if needed)
     current_task_path = get_dynamic_container_path(state_file)
 
     # --- Step 1: Ensure unique container exists ---
@@ -140,7 +145,8 @@ def test_vlsi_signoff_runner():
 
     runner.test(
         hdl_toplevel="elastic_credit_arbiter",
-        test_module=Path(__file__).stem
+        test_module=Path(__file__).stem,
+        extra_env={"ACTIVE_CONTAINER_ID": CONTAINER_ID}
     )
 
 # ==============================================================================
@@ -150,6 +156,7 @@ def test_vlsi_signoff_runner():
 @cocotb.test()
 async def test_wns_slack(dut):
     """Cocotb Test: Worst Negative Slack check via Dynamic Docker Path"""
+    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
     os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
     current_task_path = get_dynamic_container_path()
     WNS_TARGET = 0
@@ -163,6 +170,7 @@ async def test_wns_slack(dut):
         dut._log.info(f"Temp directory: {test_tmpdir}")
 
         # --- Step 1: Execute STA ---
+        # We use the dynamic path resolved from .task_dir
         cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", 
                f"cd {current_task_path} && sta -no_init run_sta.tcl"]
         subprocess.run(cmd, check=True)
@@ -213,11 +221,13 @@ async def test_area_constraint(dut):
         dut._log.info(f"Temp directory: {test_tmpdir}")
 
         # --- Step 1: Execute Yosys using the .ys script ---
+        # This generates the area.rpt inside the container
         cmd = ["docker", "exec", CONTAINER_ID, "bash", "-c", 
                f"cd {current_task_path} && yosys area.ys"]
         subprocess.run(cmd, check=True)
 
         # --- Step 2: Copy report to unique location ---
+        # Parity with timing_report.rpt logic
         area_rpt = os.path.join(test_tmpdir, "area.rpt")
         subprocess.run(
             f"docker cp {CONTAINER_ID}:{current_task_path}/area.rpt \"{area_rpt}\"", 
@@ -279,7 +289,7 @@ async def test_arbiter_full_logic(dut):
     await Timer(1,unit="ns")
     assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
 
-# --- 2. Starvation Escalation Check ---
+    # --- 2. Starvation Escalation Check ---
     dut._log.info("Stalling both Port 0 and Port 3 to reach Tier 1...")
     dut.request.value = 0b1001
     
@@ -318,7 +328,7 @@ async def test_arbiter_full_logic(dut):
     dut._log.info("Credit Guard Verified.")
 
 
-# --- 4. Elastic Increment Check ---
+    # --- 4. Elastic Increment Check ---
     dut.request.value = 0x0
     for _ in range(100):
         await RisingEdge(dut.clk)
@@ -327,7 +337,6 @@ async def test_arbiter_full_logic(dut):
     dut.packet_size.value = 0x85 # Refilled bucket should handle this
     dut.request.value = 0b0001
     
- 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
