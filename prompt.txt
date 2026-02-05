@@ -158,7 +158,7 @@ If slack is negative:
 Example:
 python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1
 Iterate until timing improves while monitoring area impact.
-After eco if you do not want to perform resynthesis ,use command- SKIP_SYNTH=1 bash sources/run_sta_cmd.sh
+
 
 ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
 WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST,BUT TAKES MORE AREA) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST, BUT TAKE LEAST AREA)
