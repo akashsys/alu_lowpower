@@ -13,7 +13,7 @@ The design enforces:
 
 1) **Credit-based flow control**: Each requester maintains a credit bucket that tracks its available resource capacity. A requester can only be granted access if its credit bucket value is greater than or equal to the current packet_size. When a grant is issued, requester's credit bucket is updated as descriped further. This mechanism prevents resource oversubscription.
 
-2) **Starvation prevention**: Each requester maintains an age counter that increments every cycle when the requester is actively requesting (Has enough credits and request signal asserted) but not granted access. Once the age counter reaches the AGE_THRESHOLD, that requester transitions to high-priority status.
+2) **Starvation prevention**: Each requester maintains an age counter that increments every cycle when the requester is actively requesting (request signal asserted) but not granted access, regardless of whether it currently has sufficient credits. Once the age counter reaches the AGE_THRESHOLD, that requester transitions to high-priority status. This ensures that even credit-exhausted requesters can eventually gain high priority and escape starvation.
 
 3) **Deterministic arbitration**: When multiple requesters compete for access, a fixed priority order (Requester[0] > Requester[1] > Requester[2] > Requester[3]) is enforced.
 
@@ -62,8 +62,7 @@ PARAMETERS AND CONSTANTS
 ===============================================================================
 
 - Number of requesters is fixed at 4.
-- AGE_THRESHOLD is a constant (8-bit) that determines when a requester becomes high priority. So whenever a valid request(request having enough credits) is made and its not granted, its age counter increases by 1. 
-If age_counter for a request reaches or exceeds AGE_THRESHOLD, the requester becomes a high priority request. A typical value for AGE_THRESHOLD is 8'h20. Now if more than one request becomes high priority then we need to follow priority with Req[0]>Req[1]>Req[2]>Req[3]. Even if in non-priority mode, if more than one request wants to access, the priority follows as Req[0]>Req[1]>Req[2]>Req[3]
+- AGE_THRESHOLD is a constant (8-bit) that determines when a requester becomes high priority. Whenever a requester's request signal is asserted but the request is not granted, its age counter increases by 1, regardless of whether the requester currently has sufficient credits. If age_counter for a request reaches or exceeds AGE_THRESHOLD, the requester becomes a high priority request. A typical value for AGE_THRESHOLD is 8'h20. Now if more than one request becomes high priority then we need to follow priority with Req[0]>Req[1]>Req[2]>Req[3]. Even if in non-priority mode, if more than one request wants to access, the priority follows as Req[0]>Req[1]>Req[2]>Req[3]
 
 - MAX_CREDIT is the maximum allowed credit value (8-bit, saturating).
 
@@ -86,21 +85,26 @@ If this condition is false:
 - The requester does not participate in arbitration.
 - No grant may be issued to that requester.
 
-If any request is granted then  calculate a speculative credit left in its bucket that equals to remaining credits after transferring packet size of data added with pseudo randomness using LFSR that makes sure that arbiter is fair and it prevents one port from consistently "shadowing" another.
+If any request is granted then calculate a speculative credit left in its bucket that equals to remaining credits after transferring packet size of data added with pseudo randomness using LFSR that makes sure that arbiter is fair and it prevents one port from consistently "shadowing" another.
 
-If any request is not granted then calculate a speculative idle state credit in its bucket that equals to its original credit bucket added with pseudo randomness using LFSR , but make sure that idle state credit does not cross the MAX_CREDIT limit
+If a requester is idle (request signal is de-asserted), calculate a speculative idle state credit in its bucket that equals to its original credit bucket added with pseudo randomness using LFSR, but make sure that idle state credit does not cross the MAX_CREDIT limit. Note: Credit recovery only occurs when the requester is truly idle (request signal = 0), not when actively requesting but waiting for a grant.
 
-A request becomes a high priority if it has requested, eligible and waited too long(aged), whereas a request is normal priority if it has requested and eligible. As soon as you encounter a high priority requests on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output. This also hold true for normal priority requests, as soon as you see normal priority request on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output.
+A request becomes a high priority if it has requested and waited too long (age counter >= AGE_THRESHOLD), regardless of current credit status. A request is normal priority if it has requested and is eligible (has sufficient credits). Only eligible requests can be granted access. As soon as you encounter a high priority eligible request on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output. This also holds true for normal priority eligible requests, as soon as you see normal priority eligible request on an edge of clock you must make grant_valid high in that cycle and make sure request can access the shared resource through our module through grant output.
 
 Remember that grant can't handle multiple requests in high and normal priority modes, and can allow only one requests that follows priority order mentioned earlier.
 
 
 - If request is granted in a cycle:
-      -its remaining credit equals to speculated credits discussed before. 
-      -its age counter resets.
-- If request is not granted in a cycle:
-      -its remaining credit follows elastic behaviour meaning it keeping updating its credit discussed before as speculated credits in idle state. 
-      -its age counter increments.
+      - Its remaining credit equals to speculated credits discussed before (credit - packet_size + LFSR perturbation)
+      - Its age counter resets to 0
+
+- If request signal is asserted but request is not granted in a cycle:
+      - Its credit bucket remains unchanged (no elastic recovery while actively requesting)
+      - Its age counter increments by 1 (regardless of whether it has sufficient credits)
+
+- If request signal is de-asserted (requester is idle) in a cycle:
+      - Its credit bucket follows elastic behaviour, incrementing by LFSR perturbation (saturating at MAX_CREDIT)
+      - Its age counter remains unchanged (aging only occurs when actively requesting)
 
 A request is said to be aged if its age counter crosses or reaches the maximum threshold.
 
