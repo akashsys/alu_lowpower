@@ -5,7 +5,8 @@
 # - Supports parallel runs with unique containers per workspace
 # - TIMEOUT SAFETY: Synthesis has 180s timeout, falls back to fast mode
 
-export DOCKER_HOST=tcp://host.docker.internal:2375
+# REMOVED: Windows-specific DOCKER_HOST TCP bridge. 
+# Linux defaults to the local Unix socket /var/run/docker.sock automatically.
 
 # Configuration
 SYNTHESIS_TIMEOUT=180  # 3 minutes for synthesis
@@ -260,7 +261,7 @@ if [ "$SHOULD_SYNTHESIZE" = true ]; then
     echo "Next steps:"
     echo "  1. Check timing report above"
     echo "  2. If timing violated, apply ECO fixes:"
-    echo "     python sources/eco_fix.py --instance _XXXX_ --new_cell sky130_...._1"
+    echo "      python sources/eco_fix.py --instance _XXXX_ --new_cell sky130_...._1"
     echo "  3. Run this script again (will use ECO mode)"
 else
     echo "Mode: ECO (Working with existing netlist)"
