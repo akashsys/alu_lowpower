@@ -59,8 +59,9 @@ def get_dynamic_container_path(state_file_override=None):
 # ==============================================================================
 def test_vlsi_signoff_runner():
     """Orchestrates sync and Cocotb simulation."""
-    # os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
-    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+    # On Linux, removing DOCKER_HOST defaults to the local unix socket
+    if "DOCKER_HOST" in os.environ:
+        del os.environ["DOCKER_HOST"]
     
     sim = os.getenv("SIM", "icarus")
     
@@ -156,8 +157,8 @@ def test_vlsi_signoff_runner():
 @cocotb.test()
 async def test_wns_slack(dut):
     """Cocotb Test: Worst Negative Slack check via Dynamic Docker Path"""
-    #os.environ["DOCKER_HOST"] = "tcp://127.0.0.1:2375"
-    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+    if "DOCKER_HOST" in os.environ:
+        del os.environ["DOCKER_HOST"]
     current_task_path = get_dynamic_container_path()
     WNS_TARGET = 0
     
@@ -208,7 +209,8 @@ async def test_wns_slack(dut):
 @cocotb.test()
 async def test_area_constraint(dut):
     """Cocotb Test: Chip Area check via script.ys and report extraction"""
-    os.environ["DOCKER_HOST"] = "tcp://host.docker.internal:2375"
+    if "DOCKER_HOST" in os.environ:
+        del os.environ["DOCKER_HOST"]
     current_task_path = get_dynamic_container_path()
     AREA_CEILING = 10556.0
     
