@@ -293,39 +293,44 @@ async def test_1_fixed_priority(dut):
 
 @cocotb.test()
 async def test_2_starvation_escalation(dut):
-    """Functional Check 2: Starvation Escalation and Tier Hierarchy."""
-    clock = Clock(dut.clk, 3.2, unit="ns") 
+    clock = Clock(dut.clk, 3.2, unit="ns")
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
-    # --- 2. Starvation Escalation Check ---
-    dut._log.info("Stalling both Port 0 and Port 3 to reach Tier 1...")
-    dut.request.value = 0b1001
-    
-    # Wait for both to age past 32 cycles (AGE_THRESH)
-    for _ in range(40): 
-        await RisingEdge(dut.clk)
-    
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-    
-    # SPEC VALIDATION: Both are Tier 1 (Aged). 
-    # Port 0 has fixed priority over Port 3, so Port 0 MUST win.
-    dut._log.info(f"Checking winner in Tier 1. Current grant: {dut.grant.value}")
-    assert dut.grant.value == 0b0001, f"Spec Violation: Port 0 should win Tier 1. Got {dut.grant.value}"
+    dut.packet_size.value = 0x10
 
-    # --- 2b. Verify Port 3 can win Tier 1 if Port 0 is served ---
-    dut._log.info("Dropping Port 0 to see if Port 3 is still in Tier 1...")
-    dut.request.value = 0b1000 # Only Port 3 remains
-    
+    dut.request.value = 0b1001
+
+    for _ in range(40):  # AGE_THRESH = 32
+        await RisingEdge(dut.clk)
+
+    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+
+    # Both aged → fixed priority → Port-0 must win
+    assert dut.grant.value == 0b0001, (
+        f"FAIL: Both aged → Port-0 must win. Got {dut.grant.value}"
+    )
+
+    dut._log.info("PASS: Both aged → Port-0 wins (fixed priority)")
+
+    # --------------------------------------------------
+
+    # Port3 age_counter is still >= AGE_THRESH
+
+    dut.request.value = 0b1100  # Port-3 (aged) + Port-2 (new,non-aged)
+
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
-    
-    # Now Port 3 should win immediately because it is already aged
-    assert dut.grant.value == 0b1000, f"Port 3 failed to win after Port 0 released. Got {dut.grant.value}"
-    dut._log.info("Starvation Tier Hierarchy Verified.")
+
+    # Aged request must win over normal request
+    assert dut.grant.value == 0b1000, (
+        f"FAIL: Aged Port-3 must beat normal Port-2. Got {dut.grant.value}"
+    )
+
+    dut._log.info("PASS: Aging escalation verified (aged beats normal)")
+
 
 @cocotb.test()
 async def test_3_elastic_credit_recovery(dut):
