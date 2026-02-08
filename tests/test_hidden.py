@@ -328,27 +328,54 @@ async def test_2_starvation_escalation(dut):
     dut._log.info("Starvation Tier Hierarchy Verified.")
 
 @cocotb.test()
-async def test_3_credit_exhaustion(dut):
-    """Functional Check 3: Credit Guard (Prevention of Over-granting)."""
-    clock = Clock(dut.clk, 3.2, unit="ns") 
+async def test_3_elastic_credit_recovery(dut):
+    """
+    Functional Check 3 (Elastic Credit):
+    - Grant must be BLOCKED immediately if credits are insufficient
+    - Grant MUST eventually succeed after elastic refill
+    """
+    clock = Clock(dut.clk, 3.2, unit="ns")
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
-    # --- PRE-CONDITION: Drain credits to match original test sequence ---
-    dut.packet_size.value = 0x10
-    for _ in range(2): # Port 0 wins twice to use 0x20 credits
-        dut.request.value = 0b0001
-        await RisingEdge(dut.clk)
+    # Step 1: Drain credits aggressively
+    dut.packet_size.value = 8'h80
+    dut.request.value = 0b0001   # Port 0
+
+    # Consume credits
+    for _ in range(3):
         await RisingEdge(dut.clk)
 
-    # --- 3. Credit Exhaustion Check ---
-    # Now try to request more than what is left (Remaining should be ~0x60-0x70)
-    dut.packet_size.value = 0x75 
-    dut.request.value = 0b1000 
+    # Step 2: Request more than remaining credit
+    dut.packet_size.value = 8'hF0
+    dut.request.value = 0b0001
+
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
-    assert dut.grant_valid.value == 0, f"Error: Grant issued with insufficient credits. Got {dut.grant_valid.value}"
-    dut._log.info("Credit Guard Verified.")
+
+    # Immediate denial expected
+    assert dut.grant_valid.value == 0, \
+        "Grant issued immediately despite insufficient credits"
+
+    # Step 3: Wait for elastic refill
+    dut.request.value = 0b0000
+    for _ in range(50):
+        await RisingEdge(dut.clk)
+
+    # Step 4: Retry request
+    dut.packet_size.value = 8'h40
+    dut.request.value = 0b0001
+
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+
+    # Grant must now succeed
+    assert dut.grant.value == 0b0001 and dut.grant_valid.value == 1, \
+        "Elastic refill failed to recover credits"
+
+    dut._log.info("Elastic Credit Recovery Verified.")
+
 
 @cocotb.test()
 async def test_4_elastic_increment(dut):
