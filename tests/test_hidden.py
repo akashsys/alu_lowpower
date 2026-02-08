@@ -339,7 +339,7 @@ async def test_3_elastic_credit_recovery(dut):
     await reset_dut(dut)
 
     # Step 1: Drain credits aggressively
-    dut.packet_size.value = 8'h80
+    dut.packet_size.value = 0x80
     dut.request.value = 0b0001   # Port 0
 
     # Consume credits
@@ -347,7 +347,7 @@ async def test_3_elastic_credit_recovery(dut):
         await RisingEdge(dut.clk)
 
     # Step 2: Request more than remaining credit
-    dut.packet_size.value = 8'hF0
+    dut.packet_size.value = 8xF0
     dut.request.value = 0b0001
 
     await RisingEdge(dut.clk)
@@ -363,7 +363,7 @@ async def test_3_elastic_credit_recovery(dut):
         await RisingEdge(dut.clk)
 
     # Step 4: Retry request
-    dut.packet_size.value = 8'h40
+    dut.packet_size.value = 0x40
     dut.request.value = 0b0001
 
     await RisingEdge(dut.clk)
