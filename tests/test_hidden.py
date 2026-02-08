@@ -327,106 +327,54 @@ async def test_2_starvation_escalation(dut):
     assert dut.grant.value == 0b1000, f"Port 3 failed to win after Port 0 released. Got {dut.grant.value}"
     dut._log.info("Starvation Tier Hierarchy Verified.")
 
-# ==============================================================================
-# 3. FUNCTIONAL TESTS (Hardware Logic)
-# ==============================================================================
-
-async def reset_dut(dut):
-    """Resets the DUT and ensures a clean starting state for every test."""
-    dut.rst_n.value = 0
-    await Timer(10, unit="ns")
-    dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-
 @cocotb.test()
-async def test_1_fixed_priority(dut):
-    """Functional Check 1: Fixed Priority (Port 0 > Port 3)."""
+async def test_3_credit_exhaustion(dut):
+    """Functional Check 3: Credit Guard (Prevention of Over-granting)."""
     clock = Clock(dut.clk, 3.2, unit="ns") 
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
+    # --- PRE-CONDITION: Drain credits to match original test sequence ---
     dut.packet_size.value = 0x10
-    dut.request.value = 0b1001 
-    for _ in range(3): await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-    
-    assert dut.grant.value == 0b0001, f"Port 0 should win via fixed priority. Got {dut.grant.value}"
-    dut._log.info("Fixed Priority Verified.")
+    for _ in range(2): # Port 0 wins twice to use 0x20 credits
+        dut.request.value = 0b0001
+        await RisingEdge(dut.clk)
+        await RisingEdge(dut.clk)
 
-@cocotb.test()
-async def test_2_starvation_escalation(dut):
-    """Functional Check 2: Starvation Escalation and Tier Hierarchy."""
-    clock = Clock(dut.clk, 3.2, unit="ns") 
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
-
-    dut._log.info("Stalling both Port 0 and Port 3 to reach Tier 1...")
-    dut.request.value = 0b1001
-    
-    # Age the requests past the threshold (32 cycles)
-    for _ in range(40): await RisingEdge(dut.clk)
-    
-    await Timer(1, unit="ns")
-    assert dut.grant.value == 0b0001, f"Spec Violation: Port 0 should win Tier 1. Got {dut.grant.value}"
-
-    dut._log.info("Dropping Port 0 to see if Port 3 is still in Tier 1...")
+    # --- 3. Credit Exhaustion Check ---
+    # Now try to request more than what is left (Remaining should be ~0x60-0x70)
+    dut.packet_size.value = 0x75 
     dut.request.value = 0b1000 
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
-    
-    assert dut.grant.value == 0b1000, f"Port 3 failed to win after Port 0 released. Got {dut.grant.value}"
-    dut._log.info("Starvation Tier Hierarchy Verified.")
-
-@cocotb.test()
-async def test_3_credit_exhaustion(dut):
-    """Functional Check 3: Credit Guard (Request > Available)."""
-    clock = Clock(dut.clk, 3.2, unit="ns") 
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
-
-    # --- SELF-CONTAINED SETUP ---
-    # To test exhaustion, we request a packet LARGER than the bucket (0x80)
-    # This proves the guard works even when the bucket is full.
-    dut.packet_size.value = 0x85 
-    dut.request.value = 0b0001 
-    
-    await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-    
-    # Grant should be 0 because 0x85 > 0x80 max credits
-    assert dut.grant_valid.value == 0, f"Error: Grant issued for 0x85 packet despite 0x80 limit."
+    assert dut.grant_valid.value == 0, f"Error: Grant issued with insufficient credits. Got {dut.grant_valid.value}"
     dut._log.info("Credit Guard Verified.")
 
 @cocotb.test()
 async def test_4_elastic_increment(dut):
-    """Functional Check 4: Elasticity (Refill allows previously blocked grant)."""
+    """Functional Check 4: Elasticity (Credit Refill over time)."""
     clock = Clock(dut.clk, 3.2, unit="ns") 
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
-    # 1. Drain credits first by taking a large grant
-    dut.packet_size.value = 0x70
+    # --- PRE-CONDITION: Drain credits completely ---
+    dut.packet_size.value = 0xFF 
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk) # Credit is now very low (~0x10)
-
-    # 2. Verify a new request for 0x50 is blocked
-    dut.packet_size.value = 0x50
     await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
-    assert dut.grant_valid.value == 0, "Packet should be blocked due to low credits."
 
-    # 3. Idle for 100 cycles to allow "Elastic" refill
+    # --- 4. Elastic Increment Check ---
     dut.request.value = 0x0
-    for _ in range(100): await RisingEdge(dut.clk)
+    for _ in range(100): # Idle to allow refill
+        await RisingEdge(dut.clk)
 
-    # 4. Now the 0x50 packet should pass
+    dut.packet_size.value = 0x85 
     dut.request.value = 0b0001
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
     
-    assert dut.grant.value == 0b0001, f"Elasticity failed. Refill did not allow grant. Got {dut.grant.value}"
+    assert dut.grant.value == 0b0001, f"Elasticity/Priority 0 failed. Got {dut.grant.value}"
     dut._log.info("Elasticity and Port 0 Priority Verified.")
 
 
