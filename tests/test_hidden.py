@@ -399,9 +399,9 @@ async def test_4_elastic_increment(dut):
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
     
-    assert dut.grant.value == 0b0001, f"Elasticity/Priority 0 failed. Got {dut.grant.value}"
-    dut._log.info("Elasticity and Port 0 Priority Verified.")
+    assert dut.grant.value == 0b0001 and dut.grant_valid.value == 1, f"Elastic refill failed. Got grant={dut.grant.value}"
 
 
 # ==============================================================================
