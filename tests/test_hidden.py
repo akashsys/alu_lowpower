@@ -275,8 +275,8 @@ async def reset_dut(dut):
     await RisingEdge(dut.clk)
 
 @cocotb.test()
-async def test_arbiter_full_logic(dut):
-    """Full Logic Check: Priority, Starvation, Credits, and Elasticity."""
+async def test_1_fixed_priority(dut):
+    """Functional Check 1: Fixed Priority (Port 0 > Port 3)."""
     clock = Clock(dut.clk, 3.2, unit="ns") 
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
@@ -287,8 +287,16 @@ async def test_arbiter_full_logic(dut):
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
-    await Timer(1,unit="ns")
-    assert dut.grant.value == 0b0001, "Port 0 should win via fixed priority"
+    await Timer(1, unit="ns")
+    assert dut.grant.value == 0b0001, f"Port 0 should win via fixed priority. Got {dut.grant.value}"
+    dut._log.info("Fixed Priority Verified.")
+
+@cocotb.test()
+async def test_2_starvation_escalation(dut):
+    """Functional Check 2: Starvation Escalation and Tier Hierarchy."""
+    clock = Clock(dut.clk, 3.2, unit="ns") 
+    cocotb.start_soon(clock.start())
+    await reset_dut(dut)
 
     # --- 2. Starvation Escalation Check ---
     dut._log.info("Stalling both Port 0 and Port 3 to reach Tier 1...")
@@ -319,23 +327,45 @@ async def test_arbiter_full_logic(dut):
     assert dut.grant.value == 0b1000, f"Port 3 failed to win after Port 0 released. Got {dut.grant.value}"
     dut._log.info("Starvation Tier Hierarchy Verified.")
 
+@cocotb.test()
+async def test_3_credit_exhaustion(dut):
+    """Functional Check 3: Credit Guard (Prevention of Over-granting)."""
+    clock = Clock(dut.clk, 3.2, unit="ns") 
+    cocotb.start_soon(clock.start())
+    await reset_dut(dut)
+
     # --- 3. Credit Exhaustion Check ---
-    # Port 0 (1 grant) and Port 3 (1 grant) used 0x10 each. Remaining: 0x70.
+    # Setup: Use some credits first
+    dut.packet_size.value = 0x10
+    dut.request.value = 0b0001
+    await RisingEdge(dut.clk) # Port 0 uses 0x10
+    
+    dut.request.value = 0b1000
+    await RisingEdge(dut.clk) # Port 3 uses 0x10. Remaining: 0x80 - 0x20 = 0x60
+    
+    # Now try to request more than what is left
     dut.packet_size.value = 0x71
     dut.request.value = 0b1000 
     await RisingEdge(dut.clk)
-    await Timer(1,unit="ns")
+    await Timer(1, unit="ns")
     assert dut.grant_valid.value == 0, "Error: Grant issued with insufficient credits"
     dut._log.info("Credit Guard Verified.")
 
+@cocotb.test()
+async def test_4_elastic_increment(dut):
+    """Functional Check 4: Elasticity (Credit Refill over time)."""
+    clock = Clock(dut.clk, 3.2, unit="ns") 
+    cocotb.start_soon(clock.start())
+    await reset_dut(dut)
 
     # --- 4. Elastic Increment Check ---
+    # Idling to allow credits to accumulate
     dut.request.value = 0x0
     for _ in range(100):
         await RisingEdge(dut.clk)
 
     # Now request the highest priority port (Port 0)
-    dut.packet_size.value = 0x85 # Refilled bucket should handle this
+    dut.packet_size.value = 0x85 # Refilled bucket should handle this higher value
     dut.request.value = 0b0001
     
     await RisingEdge(dut.clk)
@@ -345,8 +375,6 @@ async def test_arbiter_full_logic(dut):
     # Port 0 is LSB/Highest Priority, so it should be the winner
     assert dut.grant.value == 0b0001, f"Elasticity/Priority 0 failed. Got {dut.grant.value}"
     dut._log.info("Elasticity and Port 0 Priority Verified.")
-
-
 # ==============================================================================
 # 4. CLEANUP HANDLER
 # ==============================================================================
