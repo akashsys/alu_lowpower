@@ -13,13 +13,14 @@ import tempfile
 import shutil
 import atexit
 
-# --- CONFIGURATION ---
-# Use environment variable to persist ID across process forks (fixes container mismatch)
+# --- WINDOWS DOCKER CONFIG ---
+# Force use of the TCP bridge you enabled in Docker Desktop
+os.environ["DOCKER_HOST"] = "tcp://localhost:2375"
+
 if "ACTIVE_CONTAINER_ID" not in os.environ:
     os.environ["ACTIVE_CONTAINER_ID"] = f"openlane_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 CONTAINER_ID = os.environ["ACTIVE_CONTAINER_ID"]
-
 def get_dynamic_container_path(state_file_override=None):
     """Get unique task path with high-resolution timestamp to prevent collisions"""
     if state_file_override:
