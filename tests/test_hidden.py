@@ -334,21 +334,20 @@ async def test_3_credit_exhaustion(dut):
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
-    # --- 3. Credit Exhaustion Check ---
-    # Setup: Use some credits first
+    # --- PRE-CONDITION: Drain credits to match original test sequence ---
     dut.packet_size.value = 0x10
-    dut.request.value = 0b0001
-    await RisingEdge(dut.clk) # Port 0 uses 0x10
-    
-    dut.request.value = 0b1000
-    await RisingEdge(dut.clk) # Port 3 uses 0x10. Remaining: 0x80 - 0x20 = 0x60
-    
-    # Now try to request more than what is left
-    dut.packet_size.value = 0x71
+    for _ in range(2): # Port 0 wins twice to use 0x20 credits
+        dut.request.value = 0b0001
+        await RisingEdge(dut.clk)
+        await RisingEdge(dut.clk)
+
+    # --- 3. Credit Exhaustion Check ---
+    # Now try to request more than what is left (Remaining should be ~0x60-0x70)
+    dut.packet_size.value = 0x75 
     dut.request.value = 0b1000 
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
-    assert dut.grant_valid.value == 0, "Error: Grant issued with insufficient credits"
+    assert dut.grant_valid.value == 0, f"Error: Grant issued with insufficient credits. Got {dut.grant_valid.value}"
     dut._log.info("Credit Guard Verified.")
 
 @cocotb.test()
@@ -358,23 +357,27 @@ async def test_4_elastic_increment(dut):
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
 
+    # --- PRE-CONDITION: Drain credits completely ---
+    dut.packet_size.value = 0xFF 
+    dut.request.value = 0b0001
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
     # --- 4. Elastic Increment Check ---
-    # Idling to allow credits to accumulate
     dut.request.value = 0x0
-    for _ in range(100):
+    for _ in range(100): # Idle to allow refill
         await RisingEdge(dut.clk)
 
-    # Now request the highest priority port (Port 0)
-    dut.packet_size.value = 0x85 # Refilled bucket should handle this higher value
+    dut.packet_size.value = 0x85 
     dut.request.value = 0b0001
-    
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
     
-    # Port 0 is LSB/Highest Priority, so it should be the winner
     assert dut.grant.value == 0b0001, f"Elasticity/Priority 0 failed. Got {dut.grant.value}"
     dut._log.info("Elasticity and Port 0 Priority Verified.")
+
+
 # ==============================================================================
 # 4. CLEANUP HANDLER
 # ==============================================================================
