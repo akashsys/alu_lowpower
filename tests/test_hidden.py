@@ -322,6 +322,8 @@ async def test_2_starvation_escalation(dut):
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+
     await Timer(1, unit="ns")
 
     # Aged request must win over normal request
