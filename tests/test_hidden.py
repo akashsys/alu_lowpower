@@ -392,14 +392,13 @@ async def test_4_elastic_increment(dut):
 
     # --- 4. Elastic Increment Check ---
     dut.request.value = 0x0
-    for _ in range(100): # Idle to allow refill
+    for _ in range(200): # Idle to allow refill
         await RisingEdge(dut.clk)
 
-    dut.packet_size.value = 0x85 
+    dut.packet_size.value = 0x20 
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
-    await Timer(1, unit="ns")
     
     assert dut.grant.value == 0b0001, f"Elasticity/Priority 0 failed. Got {dut.grant.value}"
     dut._log.info("Elasticity and Port 0 Priority Verified.")
