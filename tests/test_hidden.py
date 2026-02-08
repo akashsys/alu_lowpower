@@ -347,7 +347,7 @@ async def test_3_elastic_credit_recovery(dut):
         await RisingEdge(dut.clk)
 
     # Step 2: Request more than remaining credit
-    dut.packet_size.value = 8xF0
+    dut.packet_size.value = 0xF0
     dut.request.value = 0b0001
 
     await RisingEdge(dut.clk)
