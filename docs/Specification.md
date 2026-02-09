@@ -7,7 +7,7 @@ Design Overview
 PURPOSE
 ===============================================================================
 
-This module controls access to a shared resource among multiple requesters. Only one requester may access the resource per clock cycle. This module has a 1-cycle entry/exit latency.
+This module controls access to a shared resource among multiple requesters. Only one requester may access the resource per clock cycle. This module has a 2-cycle entry/exit latency.
 
 The design enforces:
 
