@@ -13,11 +13,20 @@ The design enforces:
 
 1) **Credit-based flow control**: Each requester maintains a credit bucket that tracks its available resource capacity. A requester can only be granted access if its credit bucket value is greater than or equal to the current packet_size. When a grant is issued, requester's credit bucket is updated as described further and its age counter resets, when a grant is not issued requester's credit bucket equals the speculative credit in idle state and age counter increments, remember for age counter to increase its not required for the requester to be eligble, so even if a non-eligible requester is asking for access and its not granted its age counter increments. This mechanism prevents resource oversubscription.
 
-2) **Starvation prevention**: Each requester maintains an age counter that increments every cycle when the requester is actively requesting (request signal asserted) but not granted access, regardless of whether it currently has sufficient credits. Once the age counter reaches the AGE_THRESHOLD, that requester transitions to high-priority status. This ensures that even credit-exhausted requesters can eventually gain high priority and escape starvation.
+2) **Starvation prevention**: Each requester maintains an age counter that increments every cycle when the requester is actively requesting (request signal asserted) but not granted access, regardless of whether it currently has sufficient credits. Once the age counter reaches the AGE_THRESHOLD, that requester transitions to high-priority status. This ensures that even credit-exhausted requesters can eventually gain high priority and escape starvation. 
+
+IF A high priority request (eg. port 3) and normal priority request(eg. port 0) is asking for grant then port 3 should be granted as it is eligble(having enough credits),aged and actively requesting. IF NORMAL PRIORIRY REQUEST is granted over a high priority request, your starvation logic is wrong and you should think about re-building logic till high priority request is granted over a normal prioriry request this is because port 3 has aged(crossed or reached AGE_THRESHOLD) and must be served first over a normal priority request,
+
+A request becomes a high priority
+1) eligible(credit bucket value is greater than or equal to the current packet_size)
+2) aged
+3) asking for request
+
+A request becomes a normal priority
+1) eligible (credit bucket value is greater than or equal to the current packet_size)
+2) asking for request
 
 3) **Deterministic arbitration**: When multiple requesters compete for access, a fixed priority order (Requester[0] > Requester[1] > Requester[2] > Requester[3]) is enforced. FIXED PRIORITY ORDER FOLLOWS ONLY WHEN TWO OR MORE normal priortity requests OR TWO OR MORE HIGH priortity requests ARE asking for grant. 
- IF A high priority request (eg. port 3) and normal priority request(eg. port 0) is asking for grant then port 3 should be granted as its a high priority(eligble,aged,asking for access)
-
 
 4) **Elastic recovery**: When a requester is not requesting or not allowed while requesting, in both cases its credit bucket is incrementally replenished using LFSR-based pseudo-random perturbations, up to a maximum of MAX_CREDIT. This "elastic" behavior allows credit capacity to recover during periods of inactivity, ensuring the system can handle future bursts of traffic.
 
