@@ -272,7 +272,6 @@ async def reset_dut(dut):
     dut.rst_n.value = 0
     await Timer(10, unit="ns")
     dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
 
 @cocotb.test()
 async def test_1_fixed_priority(dut):
@@ -280,7 +279,6 @@ async def test_1_fixed_priority(dut):
     clock = Clock(dut.clk, 3.2, unit="ns") 
     cocotb.start_soon(clock.start())
     await reset_dut(dut)
-    await Timer(1, unit="ns")
 
     # --- 1. Fixed Priority Check ---
     dut.packet_size.value = 0x10
