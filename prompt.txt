@@ -26,7 +26,7 @@ using edit, not create.
 
 Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md  such that it follows all this behaviour 
 - Credit-based flow control
-- Starvation prevention using aging
+- Starvation prevention using aging- IF NORMAL PRIORIRY REQUEST is granted over a high priority request, your starvation logic is wrong and you should think about re-building logic till high priority request is granted over a normal prioriry request this is because port 3 has aged(crossed or reached AGE_THRESHOLD) and must be served first over a normal priority request
 - Fixed-priority arbitration
 - Elastic credit recovery behavior
 
@@ -143,9 +143,9 @@ The Problem: 6.10ns is too slow. The data is "slow" because it had to pass throu
 SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
 
 
-STEP 3- IF SYNTHESIZED NETLIST(WITHOUT ANY EC0) SLACK<-0.40ns, YOU CANNOT PERFORM ECO FIXES. YOU MUST REBUILT THE RTL BY REDUCING THE COMBINATIONAL PATH DELAYS SUCH THAT SLACK BECOMES MORE THAN -0.40ns. RE-BUILT AND RE-PERFORM SYNTHESIS STA AND AREA ANALYSIS TILL SLACK BECOMES MORE THAN -0.40ns. 
+STEP 3- IF SYNTHESIZED NETLIST(WITHOUT ANY EC0) SLACK<-0.30ns, YOU CANNOT PERFORM ECO FIXES. YOU MUST REBUILT THE RTL BY REDUCING THE COMBINATIONAL PATH DELAYS SUCH THAT SLACK BECOMES MORE THAN -0.30ns. RE-BUILT AND RE-PERFORM SYNTHESIS STA AND AREA ANALYSIS TILL SLACK BECOMES MORE THAN -0.30ns. 
 
-STEP 4- IF THE SYNTHESIZED NETLIST SLACK>-0.40ns THEN REMAINING TIMING CLEANING YOU CAN TRY USING ECO FIXES-
+STEP 4- IF THE SYNTHESIZED NETLIST SLACK>-0.30ns THEN REMAINING TIMING CLEANING YOU CAN TRY USING ECO FIXES-
 - Identify cells in the critical path with high delay
 - Check their drive strength (_0, _1, _2, _4)
 - Prefer upsizing weak cells (_0 → _1 → _2 → _4)
