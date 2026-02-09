@@ -303,7 +303,7 @@ async def test_2_starvation_escalation(dut):
 
     await RisingEdge(dut.clk) #sampling,eligiblity,spec calc,aging criteria- port0 port3 aged,high pri req activated
     await RisingEdge(dut.clk) #arbitration-high pre req is 1001,so port 0 wins
-    await RisingEdge(dut.clk #state updated
+    await RisingEdge(dut.clk) #state updated
     await Timer(1, unit="ns")
 
     # Both aged → fixed priority → Port-0 must win
