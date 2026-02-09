@@ -24,9 +24,9 @@ using edit, not create.
 
 
 
-Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md  such that it follows all this behaviour 
+Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter in such a way described in specification.md  such that it follows ALL this behaviour 
 - Credit-based flow control
-- Starvation prevention using aging- IF NORMAL PRIORIRY REQUEST is granted over a high priority request, your starvation logic is wrong and you should think about re-building logic till high priority request is granted over a normal prioriry request this is because port 3 has aged(crossed or reached AGE_THRESHOLD) and must be served first over a normal priority request
+- Starvation prevention using aging- IF NORMAL PRIORIRY REQUEST is granted over a high priority request, your starvation logic is wrong and you should think about re-building logic till high priority request is granted over a normal prioriry,for example if port3 and port1 both are requesting but port3 has aged and having enough credits then port3 should be granted, this is because port 3 has aged(crossed or reached AGE_THRESHOLD) and must be served first over a normal priority request.
 - Fixed-priority arbitration
 - Elastic credit recovery behavior
 
