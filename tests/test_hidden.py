@@ -291,18 +291,19 @@ async def test_1_fixed_priority(dut):
 
 @cocotb.test()
 async def test_2_starvation_escalation(dut):
-    clock = Clock(dut.clk, 3.2, unit="ns")
-    cocotb.start_soon(clock.start())
-    await reset_dut(dut)
+    clock = Clock(dut.clk, 3.2, unit="ns") #define clk
+    cocotb.start_soon(clock.start()) #start clk
+    await reset_dut(dut) #reset applied
 
-    dut.packet_size.value = 0x10
-    dut.request.value = 0b1001
+    dut.packet_size.value = 0x10 #packet value 16
+    dut.request.value = 0b1001 #req is port 0 nd port3
 
     for _ in range(40):  # AGE_THRESH = 32
-        await RisingEdge(dut.clk)
+        await RisingEdge(dut.clk) 
 
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk) #sampling,eligiblity,spec calc,aging criteria- port0 port3 aged,high pri req activated
+    await RisingEdge(dut.clk) #arbitration-high pre req is 1001,so port 0 wins
+    await RisingEdge(dut.clk #state updated
     await Timer(1, unit="ns")
 
     # Both aged → fixed priority → Port-0 must win
@@ -315,7 +316,7 @@ async def test_2_starvation_escalation(dut):
     # --------------------------------------------------
 
     # Port3 age_counter is still >= AGE_THRESH
-
+    
     dut.request.value = 0b1100  # Port-3 (aged) + Port-2 (new,non-aged)
 
     await RisingEdge(dut.clk)
