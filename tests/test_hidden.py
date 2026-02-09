@@ -286,7 +286,6 @@ async def test_1_fixed_priority(dut):
     dut.request.value = 0b1001 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
     assert dut.grant.value == 0b0001, f"Port 0 should win via fixed priority. Got {dut.grant.value}"
     dut._log.info("Fixed Priority Verified.")
@@ -298,12 +297,12 @@ async def test_2_starvation_escalation(dut):
     await reset_dut(dut)
 
     dut.packet_size.value = 0x10
-
     dut.request.value = 0b1001
 
     for _ in range(40):  # AGE_THRESH = 32
         await RisingEdge(dut.clk)
 
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
 
@@ -322,8 +321,6 @@ async def test_2_starvation_escalation(dut):
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
-
     await Timer(1, unit="ns")
 
     # Aged request must win over normal request
@@ -357,6 +354,7 @@ async def test_3_elastic_credit_recovery(dut):
     dut.packet_size.value = 0xF0
     dut.request.value = 0b0001
 
+    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     await Timer(1, unit="ns")
 
@@ -396,6 +394,7 @@ async def test_4_elastic_increment(dut):
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
 
     # --- 4. Elastic Increment Check ---
     dut.request.value = 0x0
@@ -406,7 +405,8 @@ async def test_4_elastic_increment(dut):
     dut.request.value = 0b0001
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    await Timer(1, unit="ns")
+ 
     
     assert dut.grant.value == 0b0001 and dut.grant_valid.value == 1, f"Elastic refill failed. Got grant={dut.grant.value}"
 
