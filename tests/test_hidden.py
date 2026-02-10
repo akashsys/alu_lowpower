@@ -316,7 +316,7 @@ async def test_2_starvation_escalation(dut):
     # --------------------------------------------------
 
     # Port3 age_counter is still >= AGE_THRESH
-    
+    dut.packet_size.value = 0x10 #added this line to make sure there is no credit eligibility issue
     dut.request.value = 0b1100  # Port-3 (aged) + Port-2 (new,non-aged)
 
     await RisingEdge(dut.clk)
