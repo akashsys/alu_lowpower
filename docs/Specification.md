@@ -155,10 +155,20 @@ The LFSR:
 - Is clocked every cycle
 - Uses XOR feedback taps
 - Produces a deterministic but pseudo-random sequence
-- Is seeded to a non-zero value on reset
+- Is seeded to a non-zero value on reset.
+ 
+LFSR Specification
+ -Type: Fibonacci Linear Feedback Shift Register (LFSR)
+ -Register Width: 16 bits (lfsr_reg[15:0])
+ -Shift Operation: On each rising edge of clk, the register shifts toward the MSB.
+  The newly computed feedback bit is inserted at the LSB (bit 0).
+  Feedback Taps: Bit positions 15, 13, 12, and 10 (zero-based indexing)
+  The generated values are used as small perturbations in credit updates.
 
-The generated values are used as small perturbations in credit updates.
-
+  feedback = lfsr_reg[15] ^ lfsr_reg[13] ^ lfsr_reg[12] ^ lfsr_reg[10];
+  lfsr_reg <= {lfsr_reg[14:0], feedback};
+  Characteristic Polynomial: G(x) = x^{16} + x^{14} + x^{13} + x^{11} + 1
+  Initial Seed: 16'hACE1 (loaded on active-low reset)
 
 ===============================================================================
 RESET BEHAVIOR
