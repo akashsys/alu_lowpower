@@ -188,5 +188,11 @@ AREA TCL FILE: sources/area.ys
 SYNTHESIS TCL FILE: sources/syn_script.ys
 
 ## Hint: 
-"Specification line 10 requires a 2-cycle entry/exit latency for the module. Examine your implementation's pipeline depth: from the cycle when request/packet_size inputs change, count how many clock edges pass before grant/grant_valid outputs reflect the arbitration decision. If you're registering grant directly from combinational arbitration logic, you have 1-cycle latency. The specification requires 2 pipeline stages. This latency matters critically for state machine coherency: if credit deductions occur based on current-cycle arbitration results, but those results should have a 2-cycle delay before becoming visible as grants, you're updating state using timing information from the 'wrong' pipeline stage. Review Specification lines 118-124 on when credit updates should occur - they must be temporally aligned with when grants are actually issued, not when arbitration decisions are internally computed"
+"Your pipeline implementation uses multiple registers (grant_p1, grant_p2, grant) but the timing relationships need careful review. In Verilog, when an always @(posedge clk) block contains multiple non-blocking assignments like A <= X; B <= X;, both A and B receive the same value from X at the same clock edge. Trace your implementation:
+Where is grant_comb computed? (Combinational, cycle N)
+When does grant_p1 capture a value? (Check which always block updates it)
+When does grant (the output) capture a value? (Check which always block updates it)
+If both grant and another register (like grant_p2) are assigned from grant_p1 in the same always block, they both change at the same clock edge
+For 2-cycle latency: Input_Change[N] → Internal_Reg[N+1] → Output[N+2]
+Count your actual stages carefully. The specification (line 10) requires exactly 2 cycles of latency. Having a register named 'grant_p1' and another named 'grant_p2' doesn't guarantee 2-cycle latency if they aren't capturing data at different clock edges. Consider: should your output register be capturing from an intermediate pipeline stage, or should there be an additional stage between your arbitration decision and your output?"
 
