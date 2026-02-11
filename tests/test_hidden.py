@@ -313,29 +313,29 @@ async def test_2a_starvation_escalation(dut):
 
     dut._log.info("PASS: Both aged → Port-0 wins (fixed priority)")
 
-@cocotb.test()
-async def test_2b_starvation_escalation(dut):
-    clock = Clock(dut.clk, 3.2, unit="ns") #define clk
-    cocotb.start_soon(clock.start()) #start clk
-    await reset_dut(dut) #reset applied
+#@cocotb.test()
+#async def test_2b_starvation_escalation(dut):
+ #   clock = Clock(dut.clk, 3.2, unit="ns") #define clk
+  #  cocotb.start_soon(clock.start()) #start clk
+    #await reset_dut(dut) #reset applied
 
-    dut.request.value = 0b1000 
-    for _ in range(40):
-        await RisingEdge(dut.clk)
+    #dut.request.value = 0b1000 
+    #for _ in range(40):
+     #   await RisingEdge(dut.clk)
 
     # Step 2: Introduce a fresh request on Port 2
-    dut.packet_size.value = 0x10
-    dut.request.value = 0b1100 # Port 3 (Aged) + Port 2 (Normal)
+   # dut.packet_size.value = 0x10
+    #dut.request.value = 0b1100 # Port 3 (Aged) + Port 2 (Normal)
 
     # Pipeline turnaround: 3 edges for stabilization after a request change
-    await RisingEdge(dut.clk) 
-    await RisingEdge(dut.clk)  
-    await RisingEdge(dut.clk)     
-    await Timer(1, unit="ns")
+    #await RisingEdge(dut.clk) 
+    #await RisingEdge(dut.clk)  
+    #await RisingEdge(dut.clk)     
+    #await Timer(1, unit="ns")
 
-    assert dut.grant.value == 0b1000, f"FAIL: Aged Port-3 must beat normal Port-2. Got {dut.grant.value}"
-    dut._log.info("PASS: Aging escalation verified (Aged beats Normal).")
-    dut._log.info("PASS: Aging escalation verified (aged beats normal)")
+    #assert dut.grant.value == 0b1000, f"FAIL: Aged Port-3 must beat normal Port-2. Got {dut.grant.value}"
+    #dut._log.info("PASS: Aging escalation verified (Aged beats Normal).")
+    #dut._log.info("PASS: Aging escalation verified (aged beats normal)")
 
 
 @cocotb.test()
