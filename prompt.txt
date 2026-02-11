@@ -173,3 +173,7 @@ PYTHON SCRIPT TO SWAP CELL : sources/eco_fix.py ( USE THIS SCRIPT TO PERFORM CEL
 RTL FILE : sources/elastic_credit_arbiter.v (YOU WILL EDIT THIS)
 AREA TCL FILE: sources/area.ys
 SYNTHESIS TCL FILE: sources/syn_script.ys
+
+## Hint: 
+"Specification line 10 requires a 2-cycle entry/exit latency for the module. Examine your implementation's pipeline depth: from the cycle when request/packet_size inputs change, count how many clock edges pass before grant/grant_valid outputs reflect the arbitration decision. If you're registering grant directly from combinational arbitration logic, you have 1-cycle latency. The specification requires 2 pipeline stages. This latency matters critically for state machine coherency: if credit deductions occur based on current-cycle arbitration results, but those results should have a 2-cycle delay before becoming visible as grants, you're updating state using timing information from the 'wrong' pipeline stage. Review Specification lines 118-124 on when credit updates should occur - they must be temporally aligned with when grants are actually issued, not when arbitration decisions are internally computed"
+
