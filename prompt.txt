@@ -32,6 +32,8 @@ Your goal is to design and implement a high-speed, 4-port elastic_credit_arbiter
 
  that is synthesizable with clean timing and follow the area requirements. The final implementation must be optimized for the Sky130 HD technology library.
 
+
+
 The file already exists. Do not use create. Use the edit tool to replace the TODO comments with the actual RTL logic.
 
 ===============================================================================
@@ -44,7 +46,17 @@ IMPORTANT RULES FOR THIS STEP
 - Focus ONLY on completing the RTL code
 
 
-STEP 1
+STEP 1- RTL IMPLEMENTATION
+Understand the Specification.md and implement the RTL. Your implemented RTL must enforce ALL 4 BEHAVIOUR:
+
+1) **Credit-based flow control**
+2) **Starvation prevention**
+3) **Deterministic arbitration**
+4) **Elastic recovery** 
+
+Once you have implemented RTL, check whether all 4 behaviour are properly implemented or not. Don't MOVE to synthesis stage if any of the behaviour fails.
+
+STEP 2- SYNTHESIS
 Run the following command in the terminal before running any other commands:
 export DOCKER_HOST=tcp://host.docker.internal:2375
 
@@ -62,7 +74,7 @@ Do NOT edit any RTL files in this step.
 Do NOT perform any ECO fixes yet.
 
 
-STEP 2
+STEP 2a- REPORT HANDLING
 The script has printed two critical sections to the terminal output.
 You must parse both:
 
@@ -143,9 +155,11 @@ The Problem: 6.10ns is too slow. The data is "slow" because it had to pass throu
 SLACK Calculation: Required Time (5.54) - Arrival Time (6.10) = -0.56ns (Violation).
 
 
-STEP 3- IF SYNTHESIZED NETLIST(WITHOUT ANY EC0) SLACK<-0.30ns, YOU CANNOT PERFORM ECO FIXES. YOU MUST REBUILT THE RTL BY REDUCING THE COMBINATIONAL PATH DELAYS SUCH THAT SLACK BECOMES MORE THAN -0.30ns. RE-BUILT AND RE-PERFORM SYNTHESIS STA AND AREA ANALYSIS TILL SLACK BECOMES MORE THAN -0.30ns. 
+STEP 3- FIXING TIMING BY RE-BUILDING RTL
+ IF SYNTHESIZED NETLIST(WITHOUT ANY EC0) SLACK<-0.50ns, YOU CANNOT PERFORM ECO FIXES. YOU MUST REBUILT THE RTL BY REDUCING THE COMBINATIONAL PATH DELAYS SUCH THAT SLACK BECOMES MORE THAN -0.50ns. RE-BUILT AND RE-PERFORM SYNTHESIS STA AND AREA ANALYSIS TILL SLACK BECOMES MORE THAN -0.50ns. 
 
-STEP 4- IF THE SYNTHESIZED NETLIST SLACK>-0.30ns THEN REMAINING TIMING CLEANING YOU CAN TRY USING ECO FIXES-
+STEP 4- FIXING TIMING BY ECO CHANGES
+IF THE SYNTHESIZED NETLIST SLACK>-0.30ns THEN REMAINING TIMING CLEANING YOU CAN TRY USING ECO FIXES-
 - Identify cells in the critical path with high delay
 - Check their drive strength (_0, _1, _2, _4)
 - Prefer upsizing weak cells (_0 → _1 → _2 → _4)
@@ -159,7 +173,6 @@ python sources/eco_fix.py --instance _5748_ --new_cell sky130_fd_sc_hd__o311ai_1
 Iterate until timing improves while monitoring area impact.
 ANY CELL FOLLOW THIS ORDER OF DRIVE STRENGTH CELL_NAME_4 > CELL_NAME_2 > CELL_NAME_1 > CELL_NAME_0
 WITH CELL_NAME_4 HAVING LOWEST DELAY(FASTEST,BUT TAKES MORE AREA) AND CELL_NAME_0 HAVING HIGHEST DELAY(SLOWEST, BUT TAKE LEAST AREA)
-
 
 
 ## Files Provided
